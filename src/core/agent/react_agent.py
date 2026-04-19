@@ -216,7 +216,7 @@ FOR CODING/DEVELOPMENT TASKS that require analysis or file operations:
 - Use the ReAct pattern with available tools
 - Follow this format:
   Thought: [Your reasoning about what to do next]
-  Action: [The tool you want to use]
+  Action: [EXACT tool name from the available tools list]
   Action Input: [Input for the tool in JSON format]
 
 When you have completed any task or want to provide a final response:
@@ -230,8 +230,9 @@ Guidelines:
 1. FIRST determine if the query needs tools or if it's a simple conversation
 2. For greetings, name questions, or casual chat - respond directly without tools
 3. For code tasks - use tools when you need file operations, git commands, or analysis
-4. If a tool fails or doesn't exist, provide a helpful response without retrying
-5. Never use non-existent tools or hallucinate tool names
+4. CRITICAL: Action must be an EXACT tool name from the list above, not a description
+5. If a tool fails or doesn't exist, provide a helpful response without retrying
+6. Never use non-existent tools or hallucinate tool names
 6. Break complex tasks into smaller steps
 7. Ask for clarification if the task is unclear
 8. Always consider security implications of code changes
@@ -472,6 +473,19 @@ Examples:
             return None
 
         action_name = action_match.group(1).strip()
+
+        # Validate that action_name is a valid tool name (not a description)
+        # Tool names should be short identifiers, not long sentences
+        if len(action_name.split()) > 3 or len(action_name) > 50:
+            logger.warning(f"Invalid tool name detected: '{action_name}' - treating as invalid format")
+            return None
+
+        # Check if the action name contains typical description words
+        description_indicators = ['will', 'ensure', 'review', 'the', 'to', 'and', 'that', 'is', 'are', 'for', 'meets', 'requirements']
+        action_words = action_name.lower().split()
+        if any(word in description_indicators for word in action_words):
+            logger.warning(f"Action appears to be a description rather than tool name: '{action_name}'")
+            return None
 
         # Check for Action Input
         action_input_match = re.search(r"Action Input:\s*(.*)", response, re.DOTALL)
