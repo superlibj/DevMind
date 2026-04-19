@@ -110,7 +110,7 @@ class ReActAgent:
             description="Read the contents of a file",
             tool_type=ToolType.FILE_OPERATION,
             parameters=[
-                ToolParameter("filename", str, "Path to the file to read", required=True)
+                ToolParameter("file_path", str, "Path to the file to read", required=True)
             ]
         )
 
@@ -121,7 +121,7 @@ class ReActAgent:
             description="Write content to a file",
             tool_type=ToolType.FILE_OPERATION,
             parameters=[
-                ToolParameter("filename", str, "Path to the file to write", required=True),
+                ToolParameter("file_path", str, "Path to the file to write", required=True),
                 ToolParameter("content", str, "Content to write to the file", required=True)
             ]
         )
@@ -137,46 +137,55 @@ class ReActAgent:
 
         logger.info("Registered basic development tools")
 
-    async def _file_read_impl(self, filename: str = None, **kwargs) -> str:
+    async def _file_read_impl(self, file_path: str = None, filename: str = None, **kwargs) -> str:
         """Implementation of file read tool."""
-        # Handle case where filename comes in different parameter formats
-        if filename is None and 'input' in kwargs:
-            filename = kwargs['input']
-        if filename is None:
-            return "Error: filename parameter is required"
-        try:
-            with open(filename, 'r', encoding='utf-8') as f:
-                content = f.read()
-            return f"Successfully read file: {filename}\n\nContent:\n{content}"
-        except Exception as e:
-            return f"Error reading file {filename}: {str(e)}"
+        # Handle case where file_path/filename comes in different parameter formats
+        # Support both file_path (new standard) and filename (backward compatibility)
+        if file_path is None and filename is None and 'input' in kwargs:
+            file_path = kwargs['input']
 
-    async def _file_write_impl(self, filename: str = None, content: str = None, **kwargs) -> str:
+        # Use file_path if available, fallback to filename for backward compatibility
+        target_file = file_path or filename
+
+        if target_file is None:
+            return "Error: file_path parameter is required"
+        try:
+            with open(target_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+            return f"Successfully read file: {target_file}\n\nContent:\n{content}"
+        except Exception as e:
+            return f"Error reading file {target_file}: {str(e)}"
+
+    async def _file_write_impl(self, file_path: str = None, filename: str = None, content: str = None, **kwargs) -> str:
         """Implementation of file write tool."""
         # Handle case where parameters come in different formats
-        if filename is None and 'input' in kwargs:
-            # Try to parse input as JSON or extract filename/content
+        # Support both file_path (new standard) and filename (backward compatibility)
+        if file_path is None and filename is None and 'input' in kwargs:
+            # Try to parse input as JSON or extract file_path/filename/content
             input_data = kwargs['input']
             if isinstance(input_data, dict):
-                filename = input_data.get('filename')
+                file_path = input_data.get('file_path') or input_data.get('filename')
                 content = input_data.get('content')
             elif isinstance(input_data, str):
                 # Try to parse as JSON
                 try:
                     parsed = json.loads(input_data)
-                    filename = parsed.get('filename')
+                    file_path = parsed.get('file_path') or parsed.get('filename')
                     content = parsed.get('content')
                 except json.JSONDecodeError:
-                    return "Error: Unable to parse input. Expected JSON with filename and content fields."
+                    return "Error: Unable to parse input. Expected JSON with file_path and content fields."
 
-        if filename is None or content is None:
-            return "Error: Both filename and content parameters are required"
+        # Use file_path if available, fallback to filename for backward compatibility
+        target_file = file_path or filename
+
+        if target_file is None or content is None:
+            return "Error: Both file_path and content parameters are required"
         try:
-            with open(filename, 'w', encoding='utf-8') as f:
+            with open(target_file, 'w', encoding='utf-8') as f:
                 f.write(content)
-            return f"Successfully wrote content to file: {filename}"
+            return f"Successfully wrote content to file: {target_file}"
         except Exception as e:
-            return f"Error writing to file {filename}: {str(e)}"
+            return f"Error writing to file {target_file}: {str(e)}"
 
     async def _git_status_impl(self, **kwargs) -> str:
         """Implementation of git status tool."""

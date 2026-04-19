@@ -1,0 +1,22 @@
+{
+  "agent_id": "agent_1776527027_d58ec196",
+  "agent_type": "Plan",
+  "description": "Plan implementation",
+  "prompt": "Plan the implementation of a new API endpoint for user management",
+  "capabilities": [
+    "file_operations",
+    "read_only",
+    "search_operations"
+  ],
+  "model": null,
+  "max_turns": 5,
+  "timeout_seconds": 300,
+  "run_in_background": false,
+  "isolation": null,
+  "resume_from": null,
+  "metadata": {},
+  "created_at": 1776527027.8842824,
+  "status": "failed",
+  "result": null,
+  "error": "'tool'"
+}

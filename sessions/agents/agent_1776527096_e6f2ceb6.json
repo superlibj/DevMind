@@ -1,0 +1,20 @@
+{
+  "agent_id": "agent_1776527096_e6f2ceb6",
+  "agent_type": "general-purpose",
+  "description": "Background research",
+  "prompt": "Research background information about the project",
+  "capabilities": [
+    "all_tools"
+  ],
+  "model": null,
+  "max_turns": 3,
+  "timeout_seconds": 300,
+  "run_in_background": true,
+  "isolation": null,
+  "resume_from": null,
+  "metadata": {},
+  "created_at": 1776527096.3304036,
+  "status": "pending",
+  "result": null,
+  "error": null
+}

@@ -55,6 +55,30 @@ from .enhanced_git import (
     GitSafetyChecker,
     register_enhanced_git_tools
 )
+from .background_tasks import (
+    BackgroundTaskManager, TaskState, BackgroundTask,
+    task_output_tool, TaskOutputTool,
+    task_stop_tool, TaskStopTool,
+    register_background_task_tools
+)
+from .memory_system import (
+    MemoryManager, MemoryEntry, MemoryTopic,
+    EnhancedSessionManager, SessionData,
+    auto_memory_tool, AutoMemoryTool,
+    register_memory_tools
+)
+from .agent_system import (
+    AgentManager, AgentType, AgentCapability,
+    agent_tool, AgentTool,
+    agent_manager, agent_registry,
+    register_agent_system_tools
+)
+from .worktree_system import (
+    WorktreeManager, WorktreeInfo,
+    enter_worktree_tool, EnterWorktreeTool,
+    get_worktree_manager,
+    register_worktree_tools
+)
 from .agent_integration import (
     acp_tool_manager,
     initialize_acp_integration,
@@ -135,6 +159,40 @@ __all__ = [
     "PRCreateTool",
     "GitSafetyChecker",
 
+    # Background Task Management
+    "BackgroundTaskManager",
+    "TaskState",
+    "BackgroundTask",
+    "task_output_tool",
+    "TaskOutputTool",
+    "task_stop_tool",
+    "TaskStopTool",
+
+    # Memory and Session Management
+    "MemoryManager",
+    "MemoryEntry",
+    "MemoryTopic",
+    "EnhancedSessionManager",
+    "SessionData",
+    "auto_memory_tool",
+    "AutoMemoryTool",
+
+    # Agent System
+    "AgentManager",
+    "AgentType",
+    "AgentCapability",
+    "agent_tool",
+    "AgentTool",
+    "agent_manager",
+    "agent_registry",
+
+    # Worktree System
+    "WorktreeManager",
+    "WorktreeInfo",
+    "enter_worktree_tool",
+    "EnterWorktreeTool",
+    "get_worktree_manager",
+
     # Agent Integration
     "acp_tool_manager",
     "initialize_acp_integration",
@@ -166,6 +224,18 @@ def register_all_tools():
 
     # Register enhanced git tools
     register_enhanced_git_tools()
+
+    # Register background task tools
+    register_background_task_tools()
+
+    # Register memory system tools
+    register_memory_tools()
+
+    # Register agent system tools
+    register_agent_system_tools()
+
+    # Register worktree system tools
+    register_worktree_tools()
 
 
 def get_available_tools():

@@ -1,0 +1,72 @@
+{
+  "agent_id": "agent_1776527096_7962ecb0",
+  "agent_type": "general-purpose",
+  "description": "Test agent 0",
+  "prompt": "Quick test",
+  "capabilities": [
+    "all_tools"
+  ],
+  "model": null,
+  "max_turns": 1,
+  "timeout_seconds": 300,
+  "run_in_background": false,
+  "isolation": null,
+  "resume_from": null,
+  "metadata": {},
+  "created_at": 1776527096.3306503,
+  "status": "completed",
+  "result": {
+    "success": true,
+    "result": "General task execution failed: Agent exceeded maximum turns: 1",
+    "task_analysis": {
+      "type": "general",
+      "keywords": [],
+      "original_prompt": "Quick test",
+      "estimated_complexity": "medium"
+    },
+    "execution_summary": {
+      "agent_id": "agent_1776527096_7962ecb0",
+      "agent_type": "general-purpose",
+      "execution_time_seconds": 0.0,
+      "turns_used": 2,
+      "max_turns": 1,
+      "tool_usage": {
+        "progress": {
+          "count": 2,
+          "successes": 2,
+          "failures": 0
+        },
+        "Glob": {
+          "count": 1,
+          "successes": 1,
+          "failures": 0
+        }
+      },
+      "available_tools": [
+        "Edit",
+        "WebSearch",
+        "WebFetch",
+        "TaskOutput",
+        "Glob",
+        "TaskCreate",
+        "TaskGet",
+        "AutoMemory",
+        "Grep",
+        "TaskStop",
+        "PRCreate",
+        "Read",
+        "TaskList",
+        "TaskUpdate",
+        "SmartCommit",
+        "AskUserQuestion",
+        "Bash",
+        "Write"
+      ],
+      "capabilities": [
+        "all_tools"
+      ]
+    },
+    "agent_id": "agent_1776527096_7962ecb0"
+  },
+  "error": null
+}

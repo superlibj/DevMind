@@ -388,13 +388,22 @@ class ToolsRegistry:
         Returns:
             Error message if validation fails, None otherwise
         """
+        # Handle 'input' parameter format - extract nested parameters
+        actual_arguments = arguments.copy()
+        if 'input' in arguments and isinstance(arguments['input'], dict):
+            # Merge input parameters with top-level parameters
+            input_params = arguments['input']
+            actual_arguments.update(input_params)
+
         # Check required parameters
         for param in tool.parameters:
-            if param.required and param.name not in arguments:
+            if param.required and param.name not in actual_arguments:
                 return f"Required parameter '{param.name}' missing"
 
         # Check parameter types (basic validation)
-        for param_name, value in arguments.items():
+        for param_name, value in actual_arguments.items():
+            if param_name == 'input':
+                continue  # Skip the input wrapper parameter
             param = next((p for p in tool.parameters if p.name == param_name), None)
             if param and not self._check_type(value, param.type):
                 return f"Parameter '{param_name}' has invalid type"

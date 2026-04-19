@@ -1,0 +1,20 @@
+{
+  "agent_id": "agent_1776527027_02682f4b",
+  "agent_type": "general-purpose",
+  "description": "Test agent 0",
+  "prompt": "Quick test",
+  "capabilities": [
+    "all_tools"
+  ],
+  "model": null,
+  "max_turns": 1,
+  "timeout_seconds": 300,
+  "run_in_background": false,
+  "isolation": null,
+  "resume_from": null,
+  "metadata": {},
+  "created_at": 1776527027.8872974,
+  "status": "failed",
+  "result": null,
+  "error": "'tool'"
+}

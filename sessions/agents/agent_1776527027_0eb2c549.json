@@ -1,0 +1,21 @@
+{
+  "agent_id": "agent_1776527027_0eb2c549",
+  "agent_type": "statusline-setup",
+  "description": "Setup statusline",
+  "prompt": "Configure the status line with optimal settings",
+  "capabilities": [
+    "file_operations",
+    "read_only"
+  ],
+  "model": null,
+  "max_turns": 3,
+  "timeout_seconds": 300,
+  "run_in_background": false,
+  "isolation": null,
+  "resume_from": null,
+  "metadata": {},
+  "created_at": 1776527027.8858607,
+  "status": "failed",
+  "result": null,
+  "error": "'tool'"
+}

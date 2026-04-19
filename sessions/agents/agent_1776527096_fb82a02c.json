@@ -1,0 +1,63 @@
+{
+  "agent_id": "agent_1776527096_fb82a02c",
+  "agent_type": "Plan",
+  "description": "Plan implementation",
+  "prompt": "Plan the implementation of a new API endpoint for user management",
+  "capabilities": [
+    "search_operations",
+    "no_destructive",
+    "read_only"
+  ],
+  "model": null,
+  "max_turns": 5,
+  "timeout_seconds": 300,
+  "run_in_background": false,
+  "isolation": null,
+  "resume_from": null,
+  "metadata": {},
+  "created_at": 1776527096.3279328,
+  "status": "completed",
+  "result": {
+    "success": false,
+    "error": "Agent exceeded maximum turns: 5",
+    "execution_summary": {
+      "agent_id": "agent_1776527096_fb82a02c",
+      "agent_type": "Plan",
+      "execution_time_seconds": 0.0,
+      "turns_used": 7,
+      "max_turns": 5,
+      "tool_usage": {
+        "progress": {
+          "count": 2,
+          "successes": 2,
+          "failures": 0
+        },
+        "Glob": {
+          "count": 5,
+          "successes": 5,
+          "failures": 0
+        }
+      },
+      "available_tools": [
+        "WebSearch",
+        "WebFetch",
+        "Glob",
+        "TaskCreate",
+        "TaskGet",
+        "AutoMemory",
+        "Grep",
+        "Read",
+        "TaskList",
+        "TaskUpdate",
+        "AskUserQuestion"
+      ],
+      "capabilities": [
+        "search_operations",
+        "no_destructive",
+        "read_only"
+      ]
+    },
+    "agent_id": "agent_1776527096_fb82a02c"
+  },
+  "error": null
+}

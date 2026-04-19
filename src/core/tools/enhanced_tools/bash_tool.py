@@ -15,6 +15,7 @@ from typing import Dict, Any, Optional, List
 
 from ..acp_integration import ACPTool, ACPToolSpec, ACPMessage, ACPToolResult, ACPStatus
 from src.core.security import input_sanitizer, InputType
+from ..background_tasks.task_manager import get_background_task_manager
 
 logger = logging.getLogger(__name__)
 
@@ -215,19 +216,43 @@ class BashTool(ACPTool):
         timeout_seconds: float
     ) -> ACPToolResult:
         """Execute command in background and return task information."""
-        # For now, return a placeholder indicating background execution would be set up
-        # In a full implementation, this would integrate with the task management system
-        return ACPToolResult(
-            status=ACPStatus.COMPLETED,
-            result=f"Background execution initiated for: {command}",
-            metadata={
-                "command": command,
-                "description": description,
-                "background": True,
-                "timeout_seconds": timeout_seconds,
-                "note": "Background execution requires task management system integration"
-            }
-        )
+        try:
+            # Get background task manager
+            task_manager = get_background_task_manager()
+
+            # Execute command in background
+            task_id = await task_manager.execute_background_command(
+                command=command,
+                description=description or f"Background execution: {command[:50]}...",
+                timeout_seconds=int(timeout_seconds) if timeout_seconds else None,
+                working_dir=os.getcwd(),
+                env=os.environ.copy()
+            )
+
+            return ACPToolResult(
+                status=ACPStatus.COMPLETED,
+                result=f"✅ Background task started: {task_id}\n\n"
+                       f"**Command:** {command}\n"
+                       f"**Description:** {description or 'No description'}\n"
+                       f"**Task ID:** {task_id}\n\n"
+                       f"Use TaskOutput tool to check progress and get output:\n"
+                       f"• Non-blocking check: TaskOutput(task_id=\"{task_id}\", block=false)\n"
+                       f"• Wait for completion: TaskOutput(task_id=\"{task_id}\", block=true)",
+                metadata={
+                    "action": "background_started",
+                    "task_id": task_id,
+                    "command": command,
+                    "description": description,
+                    "timeout_seconds": timeout_seconds
+                }
+            )
+
+        except Exception as e:
+            logger.exception(f"Error starting background command: {command}")
+            return ACPToolResult(
+                status=ACPStatus.FAILED,
+                error=f"Failed to start background command: {str(e)}"
+            )
 
     async def _pre_execute(
         self,
