@@ -289,7 +289,7 @@ class ModelConfigManager:
                 description="DeepSeek Coder - Excellent for programming tasks"
             ),
             "qwen2.5-coder": ModelInfo(
-                name="qwen2.5-coder",
+                name="qwen2.5-coder:7b",
                 provider=ProviderType.OLLAMA,
                 max_tokens=8192,
                 context_window=32768,
@@ -301,6 +301,20 @@ class ModelConfigManager:
                 ],
                 supports_tools=False,
                 description="Qwen2.5 Coder - Strong multilingual coding model"
+            ),
+            "qwen2.5-coder:7b": ModelInfo(
+                name="qwen2.5-coder:7b",
+                provider=ProviderType.OLLAMA,
+                max_tokens=8192,
+                context_window=32768,
+                capabilities=[
+                    ModelCapability.CHAT,
+                    ModelCapability.CODE_GENERATION,
+                    ModelCapability.CODE_REVIEW,
+                    ModelCapability.COMPLETION
+                ],
+                supports_tools=False,
+                description="Qwen2.5 Coder 7B - Strong multilingual coding model"
             ),
             "starcoder2": ModelInfo(
                 name="starcoder2",

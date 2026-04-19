@@ -286,6 +286,14 @@ Examples:
 
         except Exception as e:
             logger.error(f"Error processing message: {e}")
+
+            # If LLM fails but it's a conversational query, try built-in responses
+            if self._is_simple_conversational_query(message):
+                logger.info("LLM failed, falling back to built-in conversational responses")
+                response = self._handle_conversational_query(message)
+                self.conversation_memory.add_assistant_message(response)
+                return response
+
             error_response = f"I encountered an error while processing your request: {str(e)}"
             self.conversation_memory.add_assistant_message(error_response)
             return error_response
@@ -573,12 +581,17 @@ Examples:
         """
         message_lower = message.lower().strip()
 
-        # Common conversational patterns
+        # Common conversational patterns (English and Chinese)
         conversational_patterns = [
+            # English patterns
             "what is your name", "what's your name", "who are you", "tell me your name",
             "who you are", "hello", "hi", "hey", "greetings", "how are you", "how do you do",
             "what can you do", "what are your capabilities", "help", "assist", "thanks", "thank you",
-            "goodbye", "bye", "farewell", "what are you", "introduce yourself"
+            "goodbye", "bye", "farewell", "what are you", "introduce yourself",
+            # Chinese patterns
+            "你叫什么名字", "你叫什么", "你是谁", "你的名字", "名字是什么",
+            "你好", "您好", "hi", "hello", "你能做什么", "你可以做什么",
+            "帮助", "帮我", "谢谢", "再见", "介绍一下自己", "你是什么"
         ]
 
         # Check for exact matches or partial matches
@@ -604,13 +617,28 @@ Examples:
         """
         message_lower = message.lower().strip()
 
+        # Detect if message is in Chinese
+        is_chinese = any(ord(char) > 127 for char in message)
+
         # Handle name queries
-        if any(pattern in message_lower for pattern in ["what's your name", "what is your name", "who are you", "tell me your name", "who you are"]):
-            return "I'm DevMind, an AI assistant specifically designed for software development. I can help you with code generation, review, refactoring, debugging, and various development tasks. What can I help you with?"
+        name_patterns_en = ["what's your name", "what is your name", "who are you", "tell me your name", "who you are"]
+        name_patterns_zh = ["你叫什么名字", "你叫什么", "你是谁", "你的名字", "名字是什么"]
+
+        if any(pattern in message_lower for pattern in name_patterns_en + name_patterns_zh):
+            if is_chinese:
+                return "我是DevMind，专门为软件开发设计的AI助手。我可以帮助您进行代码生成、审查、重构、调试等各种开发任务。有什么我可以帮助您的吗？"
+            else:
+                return "I'm DevMind, an AI assistant specifically designed for software development. I can help you with code generation, review, refactoring, debugging, and various development tasks. What can I help you with?"
 
         # Handle greetings
-        if any(pattern in message_lower for pattern in ["hello", "hi", "hey", "greetings"]):
-            return "Hello! I'm DevMind, your AI development assistant. I can help you with various programming tasks including code writing, debugging, refactoring, and code review. Please tell me what you need help with."
+        greeting_patterns_en = ["hello", "hi", "hey", "greetings"]
+        greeting_patterns_zh = ["你好", "您好"]
+
+        if any(pattern in message_lower for pattern in greeting_patterns_en + greeting_patterns_zh):
+            if is_chinese:
+                return "你好！我是DevMind，您的AI开发助手。我可以帮您处理各种编程任务，包括代码编写、调试、重构和代码审查。请告诉我您需要什么帮助。"
+            else:
+                return "Hello! I'm DevMind, your AI development assistant. I can help you with various programming tasks including code writing, debugging, refactoring, and code review. Please tell me what you need help with."
 
         # Handle capability queries
         if any(pattern in message_lower for pattern in ["what can you do", "what are your capabilities", "help", "assist"]):
