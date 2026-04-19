@@ -154,8 +154,10 @@ class LiteLLMProvider(BaseLLM):
                 # Ollama models need provider prefix for LiteLLM
                 return f"ollama/{model}"
             elif model_info.provider.value == "llama_cpp":
-                # llama.cpp uses OpenAI-compatible API endpoint
-                return model  # Use model name as-is for llama.cpp
+                # llama.cpp uses OpenAI-compatible API, use openai/ prefix
+                # Strip the 'llama-cpp-' prefix and use base model name
+                base_model = model.replace("llama-cpp-", "") if model.startswith("llama-cpp-") else model
+                return f"openai/{base_model}"
 
         # Other models pass through unchanged
         return model
@@ -180,10 +182,9 @@ class LiteLLMProvider(BaseLLM):
                 # Default Ollama endpoint
                 params["api_base"] = "http://localhost:11434"
             elif model_info.provider.value == "llama_cpp":
-                # Default llama.cpp endpoint
-                params["api_base"] = "http://localhost:8080"
-                # Use OpenAI-compatible format for llama.cpp
-                params["api_key"] = "dummy"  # llama.cpp doesn't require API key
+                # Default llama.cpp endpoint - OpenAI compatible
+                params["api_base"] = "http://localhost:8080/v1"
+                params["api_key"] = "sk-dummy"  # llama.cpp requires dummy API key for OpenAI compatibility
 
         # Add stop sequences if provided
         if config.stop:
