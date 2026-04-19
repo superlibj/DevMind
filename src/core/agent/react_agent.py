@@ -203,45 +203,53 @@ class ReActAgent:
         """Build the system prompt for ReAct behavior."""
         return """You are DevMind, an AI code development assistant that helps with programming tasks.
 
-Your primary goal is to be helpful and respond appropriately to user queries.
+IMPORTANT: Most questions can be answered directly without tools! Only use tools when you absolutely need to read/write files or execute commands.
 
-FOR SIMPLE CONVERSATIONAL QUESTIONS (greetings, questions about yourself, general chat):
-- Respond directly without using tools
-- Be friendly and conversational
-- Use this format:
-  Thought: [Brief reasoning]
-  Final Answer: [Your direct response]
+FOR MOST QUERIES - Give direct answers using this format:
+Thought: [Brief reasoning about why no tools are needed]
+Final Answer: [Your complete helpful response]
 
-FOR CODING/DEVELOPMENT TASKS that require analysis or file operations:
-- Use the ReAct pattern with available tools
-- Follow this format:
-  Thought: [Your reasoning about what to do next]
-  Action: [EXACT tool name from the available tools list]
-  Action Input: [Input for the tool in JSON format]
-
-When you have completed any task or want to provide a final response:
-Thought: [Your final reasoning]
-Final Answer: [Your complete response to the user]
+ONLY use tools for these specific cases:
+- Reading actual files from the filesystem
+- Writing/editing files
+- Git operations
+- Running system commands
 
 Available tools:
 {tools}
 
-Guidelines:
-1. FIRST determine if the query needs tools or if it's a simple conversation
-2. For greetings, name questions, or casual chat - respond directly without tools
-3. For code tasks - use tools when you need file operations, git commands, or analysis
-4. CRITICAL: Action must be an EXACT tool name from the list above, not a description
-5. If a tool fails or doesn't exist, provide a helpful response without retrying
-6. Never use non-existent tools or hallucinate tool names
-6. Break complex tasks into smaller steps
-7. Ask for clarification if the task is unclear
-8. Always consider security implications of code changes
-9. Focus on best practices and clean, maintainable code
+CRITICAL TOOL USAGE RULES:
+- Action must be EXACTLY one of the tool names listed above
+- NEVER use descriptions like "I will review the file" as actions
+- Valid: "file_read" | Invalid: "I will read the file to check for errors"
+- When in doubt, provide a direct Final Answer instead
 
 Examples:
-- User: "What's your name?" → Direct answer, no tools needed
-- User: "Fix this bug in my code" → Use tools to read/analyze files
-- User: "Hello" → Friendly greeting, no tools needed
+
+USER: "Review my HTML file for errors"
+Thought: I can provide general HTML review guidance without reading the actual file
+Final Answer: I can help you review HTML for common issues...
+
+USER: "Read the contents of index.html"
+Thought: The user wants me to read a specific file
+Action: file_read
+Action Input: {{"file_path": "index.html"}}
+
+USER: "How do I fix JavaScript errors?"
+Thought: This is asking for general advice, no file access needed
+Final Answer: Here are common ways to debug JavaScript errors...
+
+USER: "What's wrong with my code?"
+Thought: I need to see the actual code file to help
+Action: file_read
+Action Input: {{"file_path": "filename.js"}}
+
+Guidelines:
+1. DEFAULT to direct answers - tools are the exception, not the rule
+2. Only use tools when you absolutely must access files/commands
+3. NEVER use sentences or descriptions as Action names
+4. When unsure, always choose Final Answer over tools
+5. Be helpful and comprehensive in your direct answers
 """
 
     async def process_user_message(
@@ -306,7 +314,7 @@ Examples:
             Final response to the user
         """
         consecutive_failures = 0
-        max_failures = 3
+        max_failures = 2  # Reduced from 3 to 2 for faster fallback
 
         while self.iteration_count < self.max_iterations:
             self.iteration_count += 1
@@ -327,13 +335,22 @@ Examples:
             if parsed_action is None:
                 consecutive_failures += 1
                 if consecutive_failures >= max_failures:
-                    # Too many consecutive failures, provide fallback response
-                    logger.warning("Too many parsing failures, providing fallback response")
-                    return "I'm having trouble understanding the request format. Let me provide a direct response instead."
+                    # Too many consecutive failures, provide helpful fallback response
+                    logger.warning("Too many parsing failures, providing direct answer")
+                    user_message = self.working_memory.get_current_task().get("task", "")
 
-                # Invalid format, ask LLM to correct
+                    # Try to extract useful response from the raw LLM output
+                    if "Final Answer:" in response_text:
+                        final_answer_match = re.search(r"Final Answer:\s*(.*)", response_text, re.DOTALL)
+                        if final_answer_match:
+                            return final_answer_match.group(1).strip()
+
+                    # Generic helpful response
+                    return f"I can help you with that request. Based on your question about '{user_message[:50]}...', I'd recommend checking the relevant documentation or providing more specific details about what you need assistance with."
+
+                # Invalid format, ask LLM to correct with stronger guidance
                 self.conversation_memory.add_observation(
-                    "Invalid response format. Please use either a direct Final Answer or the Thought/Action/Action Input format."
+                    "IMPORTANT: Use EXACT tool names from the available tools list, or provide a Final Answer directly. Do not use descriptions as action names."
                 )
                 continue
 
@@ -476,15 +493,25 @@ Examples:
 
         # Validate that action_name is a valid tool name (not a description)
         # Tool names should be short identifiers, not long sentences
-        if len(action_name.split()) > 3 or len(action_name) > 50:
+        if len(action_name.split()) > 2 or len(action_name) > 30:
             logger.warning(f"Invalid tool name detected: '{action_name}' - treating as invalid format")
             return None
 
-        # Check if the action name contains typical description words
-        description_indicators = ['will', 'ensure', 'review', 'the', 'to', 'and', 'that', 'is', 'are', 'for', 'meets', 'requirements']
+        # Check if the action name contains typical description words or phrases
+        description_indicators = [
+            'will', 'ensure', 'review', 'the', 'to', 'and', 'that', 'is', 'are',
+            'for', 'meets', 'requirements', 'check', 'open', 'console', 'browser',
+            'any', 'errors', 'in', 'your', 'web', 'javascript', 'html', 'css',
+            'this', 'file', 'appears', 'contains', 'necessary', 'elements'
+        ]
         action_words = action_name.lower().split()
-        if any(word in description_indicators for word in action_words):
+        if len(action_words) > 2 or any(word in description_indicators for word in action_words):
             logger.warning(f"Action appears to be a description rather than tool name: '{action_name}'")
+            return None
+
+        # Additional check: if it contains punctuation typical of sentences
+        if any(char in action_name for char in ['.', '!', '?', ',']):
+            logger.warning(f"Action contains sentence punctuation: '{action_name}'")
             return None
 
         # Check for Action Input
