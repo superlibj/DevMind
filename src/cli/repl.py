@@ -42,7 +42,8 @@ class DevMindREPL:
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         timeout: int = 60,
-        max_iterations: int = 100
+        max_iterations: int = 100,
+        hide_iterations: bool = False
     ):
         """Initialize the REPL.
 
@@ -79,7 +80,7 @@ class DevMindREPL:
         # Create ReAct agent and wrap it with streaming capabilities
         react_agent = ReActAgent(llm=self.llm, max_iterations=max_iterations)
         self.streaming_agent = StreamingReActAgent(react_agent, self.output_formatter)
-        self.agent_interface = CLIAgentInterface(self.streaming_agent)
+        self.agent_interface = CLIAgentInterface(self.streaming_agent, hide_iterations=hide_iterations)
 
         # For compatibility, expose the underlying agent
         self.agent = react_agent

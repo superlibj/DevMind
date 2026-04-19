@@ -42,6 +42,7 @@ class CommandParser:
             "tokens": self._tokens_command,
             "usage": self._usage_command,
             "cost": self._cost_command,
+            "iterations": self._iterations_command,
             "exit": self._exit_command,
             "quit": self._exit_command,
         }
@@ -106,6 +107,10 @@ class CommandParser:
 • [cyan]/usage[/cyan] - Show detailed usage report
 • [cyan]/usage --export <file>[/cyan] - Export usage report to file
 • [cyan]/cost[/cyan] - Show cost breakdown by model
+
+[bold]Display Options:[/bold]
+• [cyan]/iterations[/cyan] - Toggle thinking process display
+• [cyan]/iterations on/off[/cyan] - Explicitly enable/disable thinking display
 
 [bold]Input Tips:[/bold]
 • Use [cyan]```[/cyan] for multi-line code input
@@ -400,6 +405,25 @@ Available Tools: {task_summary.get('available_tools', 0)}
         if session.total_tokens > 0:
             avg_cost_per_1k = (session.total_cost / session.total_tokens) * 1000
             console.print(f"Average cost per 1K tokens: ${avg_cost_per_1k:.6f}")
+
+    async def _iterations_command(self, args: List[str]) -> None:
+        """Toggle iteration display or show current setting."""
+        if hasattr(self.repl, 'agent_interface') and hasattr(self.repl.agent_interface, 'hide_iterations'):
+            current = self.repl.agent_interface.hide_iterations
+
+            if args and args[0].lower() in ['on', 'show', 'true']:
+                self.repl.agent_interface.hide_iterations = False
+                console.print("[green]思考过程显示已开启[/green]")
+            elif args and args[0].lower() in ['off', 'hide', 'false']:
+                self.repl.agent_interface.hide_iterations = True
+                console.print("[yellow]思考过程显示已关闭[/yellow]")
+            else:
+                # Toggle
+                self.repl.agent_interface.hide_iterations = not current
+                status = "关闭" if self.repl.agent_interface.hide_iterations else "开启"
+                console.print(f"[cyan]思考过程显示已{status}[/cyan]")
+        else:
+            console.print("[red]无法控制思考过程显示[/red]")
 
     async def _exit_command(self, args: List[str]) -> None:
         """Exit command."""

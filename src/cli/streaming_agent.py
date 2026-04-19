@@ -100,20 +100,50 @@ class StreamingReActAgent:
             self.agent.iteration_count += 1
             self.current_iteration = self.agent.iteration_count
 
+            # Generate meaningful iteration description
+            step_descriptions = [
+                "开始分析任务",
+                "深入理解需求",
+                "制定执行计划",
+                "执行具体操作",
+                "检查执行结果",
+                "优化解决方案",
+                "验证最终结果",
+                "完善输出内容"
+            ]
+
+            desc_index = min(self.current_iteration - 1, len(step_descriptions) - 1)
+            step_desc = step_descriptions[desc_index]
+
             yield StreamingEvent(
                 type="iteration_start",
-                content=f"Iteration {self.current_iteration}",
-                metadata={"iteration": self.current_iteration}
+                content=step_desc,
+                metadata={"iteration": self.current_iteration, "description": step_desc}
             )
 
             # Get current conversation context
             messages = self.agent._build_messages_for_llm()
 
             # Generate response with streaming
+            thinking_descriptions = [
+                "分析任务需求...",
+                "规划执行步骤...",
+                "评估当前进展...",
+                "准备下一步行动...",
+                "整合执行结果...",
+                "完善解决方案...",
+                "验证执行效果...",
+                "总结处理结果..."
+            ]
+
+            # Choose description based on iteration number
+            desc_index = min(self.current_iteration - 1, len(thinking_descriptions) - 1)
+            thinking_desc = thinking_descriptions[desc_index]
+
             yield StreamingEvent(
                 type="thinking",
-                content="Generating response...",
-                metadata={"step": "llm_generation"}
+                content=thinking_desc,
+                metadata={"step": "llm_generation", "iteration": self.current_iteration}
             )
 
             try:
@@ -354,14 +384,16 @@ class StreamingReActAgent:
 class CLIAgentInterface:
     """High-level interface for CLI agent interaction with Rich display."""
 
-    def __init__(self, streaming_agent: StreamingReActAgent):
+    def __init__(self, streaming_agent: StreamingReActAgent, hide_iterations: bool = False):
         """Initialize CLI agent interface.
 
         Args:
             streaming_agent: Streaming ReAct agent instance
+            hide_iterations: Whether to hide iteration progress for cleaner output
         """
         self.agent = streaming_agent
         self.formatter = streaming_agent.formatter
+        self.hide_iterations = hide_iterations
 
     async def process_message_with_display(self, message: str) -> str:
         """Process message with rich CLI display.
@@ -381,17 +413,26 @@ class CLIAgentInterface:
             async for event in self.agent.process_user_message_stream(message):
 
                 if event.type == "iteration_start":
-                    console.print(f"[dim]💭 Iteration {event.metadata['iteration']}[/dim]")
+                    if not self.hide_iterations:
+                        # Use the meaningful description instead of iteration number
+                        step_desc = event.metadata.get('description', f"思考步骤 {event.metadata['iteration']}")
+                        console.print(f"[dim]💭 {step_desc}[/dim]")
 
                 elif event.type == "thinking":
-                    with console.status("[bold green]🤔 Thinking...", spinner="dots"):
+                    thinking_text = event.content if event.content != "Generating response..." else "🤔 思考中..."
+                    with console.status(f"[bold green]{thinking_text}", spinner="dots"):
                         await asyncio.sleep(0.1)  # Small delay for visual effect
 
                 elif event.type == "llm_response":
-                    # Display the thought process
-                    if "Thought:" in event.content:
+                    # Display the thought process with better formatting
+                    if not self.hide_iterations and "Thought:" in event.content:
                         thought_match = event.content.split("Thought:")[1].split("Action:")[0] if "Action:" in event.content else event.content.split("Thought:")[1]
                         current_thought = thought_match.strip()
+
+                        # Shorten long thoughts for cleaner display
+                        if len(current_thought) > 100:
+                            current_thought = current_thought[:97] + "..."
+
                         console.print(f"[dim]💭 {current_thought}[/dim]")
 
                 elif event.type == "action_start":

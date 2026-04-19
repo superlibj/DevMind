@@ -129,6 +129,11 @@ def main(
         "--max-iterations",
         help="Maximum number of agent iterations for complex tasks (default: 100)"
     ),
+    hide_iterations: bool = typer.Option(
+        False,
+        "--hide-iterations",
+        help="Hide iteration progress for cleaner output"
+    ),
     debug: bool = typer.Option(
         False,
         "--debug",
@@ -189,6 +194,7 @@ def main(
             max_tokens=max_tokens,
             timeout=timeout,
             max_iterations=max_iterations,
+            hide_iterations=hide_iterations,
             debug=debug
         ))
     except KeyboardInterrupt:
@@ -210,6 +216,7 @@ async def start_interactive_session(
     max_tokens: Optional[int] = None,
     timeout: int = 60,
     max_iterations: int = 100,
+    hide_iterations: bool = False,
     debug: bool = False
 ):
     """Start the interactive REPL session."""
@@ -226,7 +233,8 @@ async def start_interactive_session(
         temperature=temperature,
         max_tokens=max_tokens,
         timeout=timeout,
-        max_iterations=max_iterations
+        max_iterations=max_iterations,
+        hide_iterations=hide_iterations
     )
 
     # Load session if specified
