@@ -1,0 +1,82 @@
+{
+  "commands": [
+    {
+      "id": "51e0f6f9-73eb-43b3-ab94-70baf871d5d5",
+      "command": "agent",
+      "description": "Explore codebase structure",
+      "args": {
+        "subagent_type": "Explore",
+        "prompt": "Quick exploration of the project structure"
+      },
+      "priority": 3,
+      "status": "queued",
+      "created_at": 1776554150.4673917,
+      "started_at": null,
+      "completed_at": null,
+      "result": null,
+      "error": null,
+      "metadata": {}
+    },
+    {
+      "id": "9ba9e4f7-026f-4fda-a48c-0ecc0b976729",
+      "command": "agent",
+      "description": "Plan new feature implementation",
+      "args": {
+        "subagent_type": "Plan",
+        "prompt": "Plan implementation of user authentication system"
+      },
+      "priority": 2,
+      "status": "queued",
+      "created_at": 1776554150.4676592,
+      "started_at": null,
+      "completed_at": null,
+      "result": null,
+      "error": null,
+      "metadata": {}
+    },
+    {
+      "id": "5036720c-124d-4624-8e41-8707511e3209",
+      "command": "tool",
+      "description": "Read project documentation",
+      "args": {
+        "tool_name": "Read",
+        "file_path": "README.md"
+      },
+      "priority": 1,
+      "status": "queued",
+      "created_at": 1776554150.467825,
+      "started_at": null,
+      "completed_at": null,
+      "result": null,
+      "error": null,
+      "metadata": {}
+    },
+    {
+      "id": "5a471b95-5a1b-447c-9e6f-6be3a5086430",
+      "command": "git",
+      "description": "Create smart commit",
+      "args": {
+        "message": "Update command queue system",
+        "include_files": [
+          "src/core/tools/command_queue/"
+        ]
+      },
+      "priority": 4,
+      "status": "completed",
+      "created_at": 1776554150.4679866,
+      "started_at": 1776554150.46827,
+      "completed_at": 1776554150.521686,
+      "result": {
+        "success": true,
+        "result": "Successfully created commit: Update"
+      },
+      "error": null,
+      "metadata": {}
+    }
+  ],
+  "config": {
+    "max_queue_size": 100,
+    "max_concurrent_commands": 3,
+    "auto_execute": false
+  }
+}

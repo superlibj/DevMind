@@ -383,6 +383,36 @@ class HelpSystem:
             category="system"
         ))
 
+        # Command Queue System
+        self.register_help(HelpEntry(
+            name="queue",
+            description="Manage command execution queue",
+            usage="devmind queue <action> [options]",
+            examples=[
+                "devmind queue add --command agent --description 'Explore codebase'",
+                "devmind queue list",
+                "devmind queue execute",
+                "devmind queue status",
+                "devmind queue clear --confirm"
+            ],
+            arguments=[
+                "action        Queue action (add, list, remove, execute, status, clear)"
+            ],
+            options=[
+                "--command TEXT         Command to queue",
+                "--description TEXT     Command description",
+                "--priority TEXT        Command priority (low, normal, high, urgent)",
+                "--args JSON           Command arguments",
+                "--command-id TEXT     Specific command ID",
+                "--status TEXT         Filter by status",
+                "--wait                Wait for completion",
+                "--confirm             Confirm destructive operations"
+            ],
+            details="Queue commands for sequential execution with priority support. Similar to Claude Code's command queuing functionality.",
+            see_also=["help agent", "help background"],
+            category="system"
+        ))
+
         # Topics
         self.register_topic("getting-started", """
 DevMind is designed to enhance your development workflow with AI assistance.
@@ -424,6 +454,45 @@ Examples:
 • Research: devmind agent general-purpose --prompt "Find all API endpoints"
 • Explore: devmind agent Explore --prompt "Quick codebase overview"
 • Plan: devmind agent Plan --prompt "Plan user authentication feature"
+        """)
+
+        self.register_topic("queue", """
+DevMind Command Queue System allows you to queue commands for sequential execution, similar to Claude Code.
+
+Key Features:
+• Priority-based execution (urgent, high, normal, low)
+• Auto-execution mode for continuous processing
+• Command persistence across sessions
+• Background execution support
+• Comprehensive status monitoring
+
+Basic Queue Operations:
+• Add commands: QueueAdd with command, description, and priority
+• List queue: QueueList to see all queued commands
+• Execute commands: QueueExecute to start processing
+• Monitor status: QueueStatus for detailed statistics
+• Clear queue: QueueClear to remove commands
+
+Priority Levels:
+• urgent: Execute immediately with highest priority
+• high: High priority execution
+• normal: Standard priority (default)
+• low: Low priority, executed after others
+
+Supported Command Types:
+• agent: Spawn AI agents for complex tasks
+• git: Enhanced git operations
+• tool: Execute any registered tool
+
+Auto-Execution Mode:
+Enable automatic command processing that continuously executes queued commands
+in the background based on priority and available execution slots.
+
+Examples:
+• Queue agent: QueueAdd --command agent --description "Code analysis" --priority high
+• List queue: QueueList --show-stats true
+• Execute next: QueueExecute --count 3 --wait true
+• Clear completed: QueueClear --status completed --confirm true
         """)
 
 

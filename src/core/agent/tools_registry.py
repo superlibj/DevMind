@@ -320,17 +320,26 @@ class ToolsRegistry:
             # Execute the tool
             logger.info(f"Executing tool: {name} with args: {arguments}")
 
+            # Handle 'input' parameter format - extract nested parameters for execution
+            exec_arguments = arguments.copy()
+            if 'input' in arguments and isinstance(arguments['input'], dict):
+                # Merge input parameters with top-level parameters for execution
+                input_params = arguments['input']
+                exec_arguments.update(input_params)
+                # Remove the input wrapper to avoid passing it as a parameter
+                exec_arguments.pop('input', None)
+
             if asyncio.iscoroutinefunction(tool.function):
                 # Async function
                 result = await asyncio.wait_for(
-                    tool.function(**arguments),
+                    tool.function(**exec_arguments),
                     timeout=tool.timeout
                 )
             else:
                 # Sync function - run in thread pool
                 loop = asyncio.get_event_loop()
                 result = await asyncio.wait_for(
-                    loop.run_in_executor(None, lambda: tool.function(**arguments)),
+                    loop.run_in_executor(None, lambda: tool.function(**exec_arguments)),
                     timeout=tool.timeout
                 )
 

@@ -55,6 +55,9 @@ class LiteLLMProvider(BaseLLM):
         litellm.num_retries = 3
         litellm.request_timeout = self.config.timeout
 
+        # Drop unsupported parameters for different providers
+        litellm.drop_params = True
+
     @property
     def provider_name(self) -> str:
         """Return the provider name."""

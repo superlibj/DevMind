@@ -79,6 +79,18 @@ from .worktree_system import (
     get_worktree_manager,
     register_worktree_tools
 )
+from .command_queue import (
+    CommandQueueManager, QueuedCommand, CommandStatus,
+    queue_add_tool, QueueAddTool,
+    queue_list_tool, QueueListTool,
+    queue_remove_tool, QueueRemoveTool,
+    queue_execute_tool, QueueExecuteTool,
+    queue_status_tool, QueueStatusTool,
+    queue_clear_tool, QueueClearTool,
+    QueueExecutor, ExecutionMode,
+    get_queue_manager, get_queue_executor,
+    register_queue_tools
+)
 from .agent_integration import (
     acp_tool_manager,
     initialize_acp_integration,
@@ -193,6 +205,27 @@ __all__ = [
     "EnterWorktreeTool",
     "get_worktree_manager",
 
+    # Command Queue System
+    "CommandQueueManager",
+    "QueuedCommand",
+    "CommandStatus",
+    "queue_add_tool",
+    "QueueAddTool",
+    "queue_list_tool",
+    "QueueListTool",
+    "queue_remove_tool",
+    "QueueRemoveTool",
+    "queue_execute_tool",
+    "QueueExecuteTool",
+    "queue_status_tool",
+    "QueueStatusTool",
+    "queue_clear_tool",
+    "QueueClearTool",
+    "QueueExecutor",
+    "ExecutionMode",
+    "get_queue_manager",
+    "get_queue_executor",
+
     # Agent Integration
     "acp_tool_manager",
     "initialize_acp_integration",
@@ -236,6 +269,9 @@ def register_all_tools():
 
     # Register worktree system tools
     register_worktree_tools()
+
+    # Register command queue tools
+    register_queue_tools()
 
 
 def get_available_tools():
