@@ -22,12 +22,22 @@ from rich.live import Live
 from rich.layout import Layout
 from rich.align import Align
 
+# Enhanced input handling with auto-completion
+from prompt_toolkit import PromptSession
+from prompt_toolkit.shortcuts import CompleteStyle
+from prompt_toolkit.history import InMemoryHistory
+from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.shortcuts import radiolist_dialog
+from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.styles import Style
+
 from ..core.agent.react_agent import ReActAgent
 from ..core.llm import create_llm
 from .session_manager import SessionManager
 from .command_parser import CommandParser
 from .output_formatter import OutputFormatter
 from .streaming_agent import StreamingReActAgent, CLIAgentInterface
+from .completion import create_completer, DevMindCommandSelector
 
 console = Console()
 
@@ -98,8 +108,72 @@ class DevMindREPL:
         self.input_buffer: List[str] = []
         self.in_multiline = False
 
+        # Set up enhanced input handling with auto-completion
+        self.completer = create_completer(self)
+        self.command_selector = DevMindCommandSelector(self.completer)
+        self.history = InMemoryHistory()
+
+        # Create prompt session with completion
+        self.prompt_session = PromptSession(
+            completer=self.completer,
+            complete_style=CompleteStyle.MULTI_COLUMN,
+            history=self.history,
+            key_bindings=self._create_key_bindings()
+        )
+
         # Set up signal handlers
         signal.signal(signal.SIGINT, self._handle_interrupt)
+
+    def _create_key_bindings(self) -> KeyBindings:
+        """Create custom key bindings for enhanced input."""
+        kb = KeyBindings()
+
+        @kb.add('c-c')
+        def _(event):
+            """Handle Ctrl+C interrupt."""
+            if self.in_multiline and self.input_buffer:
+                # Clear multi-line input
+                self.input_buffer.clear()
+                self.in_multiline = False
+                console.print("\n[yellow]Multi-line input cleared.[/yellow]")
+                return
+
+            # Exit REPL
+            console.print("\n[yellow]Goodbye![/yellow]")
+            self.running = False
+            event.app.exit()
+
+        @kb.add('/')
+        def _(event):
+            """Show command selector when '/' is typed."""
+            # Insert the '/' character first
+            event.current_buffer.insert_text('/')
+
+            # If this is the only character, show command help
+            if len(event.current_buffer.text.strip()) == 1:
+                self._show_command_help_inline()
+
+        return kb
+
+    def _show_command_help_inline(self):
+        """Show brief command help inline."""
+        console.print("\n[dim]💡 Available commands (press [b]Tab[/b] for completion):[/dim]")
+
+        # Show commands in columns for better display
+        commands = list(self.command_selector.completer.commands.items())
+
+        # Display in 2 columns with better formatting
+        for i in range(0, len(commands), 2):
+            line = ""
+            for j in range(2):
+                if i + j < len(commands):
+                    cmd, desc = commands[i + j]
+                    # Truncate long descriptions
+                    short_desc = desc[:28] + "..." if len(desc) > 28 else desc
+                    line += f"[cyan]/{cmd:<12}[/cyan][dim]{short_desc:<32}[/dim]"
+            console.print(line.rstrip())
+
+        console.print("[dim]Press [b]Tab[/b] after typing command name for auto-completion[/dim]")
 
     def _handle_interrupt(self, signum, frame):
         """Handle Ctrl+C interrupt."""
@@ -163,6 +237,11 @@ I'm your interactive development assistant. I can help with:
 • Debugging and refactoring
 • Architecture discussions
 
+[bold]Enhanced Input Features:[/bold]
+• [green]🔥 Tab completion[/green] - Press [cyan]Tab[/cyan] for command/file completion
+• [green]📋 Command suggestions[/green] - Type [cyan]/[/cyan] to see available commands
+• [green]⬆️ History navigation[/green] - Use [cyan]↑↓[/cyan] arrows for command history
+
 [bold]Special Commands:[/bold]
 • [cyan]/help[/cyan] - Show detailed help
 • [cyan]/model[/cyan] - Switch LLM model
@@ -173,8 +252,10 @@ I'm your interactive development assistant. I can help with:
 • [cyan]/clear[/cyan] - Clear conversation
 • [cyan]/exit[/cyan] - Exit DevMind
 
-[bold]Tips:[/bold]
+[bold]Input Tips:[/bold]
 • Use [cyan]```[/cyan] for multi-line code input
+• Press [cyan]Tab[/cyan] to complete commands and filenames
+• Type [cyan]/[/cyan] and press [cyan]Tab[/cyan] to see all commands
 • Press [cyan]Ctrl+C[/cyan] to cancel current operation
 • Type naturally - I'll understand context from our conversation
 
@@ -189,7 +270,7 @@ Ready to help! What would you like to work on?
         ))
 
     async def _get_user_input(self) -> Optional[str]:
-        """Get user input with support for multi-line input."""
+        """Get user input with enhanced auto-completion and command suggestions."""
 
         if self.in_multiline:
             prompt_text = "... "
@@ -197,11 +278,21 @@ Ready to help! What would you like to work on?
             prompt_text = "devmind> "
 
         try:
-            # Simple input for now - can enhance with prompt_toolkit later
-            user_input = await asyncio.to_thread(
-                input,
-                f"\n{prompt_text}"
-            )
+            # Use enhanced prompt session with auto-completion
+            # Disable completion in multi-line mode for better experience
+            use_completion = not self.in_multiline
+
+            if use_completion:
+                user_input = await asyncio.to_thread(
+                    self.prompt_session.prompt,
+                    f"{prompt_text}",
+                    complete_style=CompleteStyle.MULTI_COLUMN
+                )
+            else:
+                # Simple input for multi-line mode
+                user_input = await asyncio.to_thread(
+                    lambda: input(f"{prompt_text}")
+                )
 
             # Check for multi-line input
             if user_input.strip() == "```" and not self.in_multiline:
@@ -228,6 +319,9 @@ Ready to help! What would you like to work on?
 
         except EOFError:
             return None
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Input cancelled.[/yellow]")
+            return ""
 
     async def _handle_special_commands(self, user_input: str) -> bool:
         """Handle special commands.
