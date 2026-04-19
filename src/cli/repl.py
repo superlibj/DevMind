@@ -168,6 +168,7 @@ I'm your interactive development assistant. I can help with:
 • [cyan]/save <name>[/cyan] - Save current session
 • [cyan]/load <name>[/cyan] - Load saved session
 • [cyan]/sessions[/cyan] - List saved sessions
+• [cyan]/tokens[/cyan] - Show token usage & cost
 • [cyan]/clear[/cyan] - Clear conversation
 • [cyan]/exit[/cyan] - Exit DevMind
 
@@ -379,5 +380,13 @@ Ready to help! What would you like to work on?
         # Auto-save if we have a named session
         if self.session_name:
             await self._auto_save_session()
+
+        # Show session summary
+        try:
+            from .token_counter import token_counter
+            console.print("\n")
+            console.print(token_counter.get_session_summary())
+        except Exception:
+            pass  # Silently ignore if token counter fails
 
         console.print("\n[dim]Session ended.[/dim]")

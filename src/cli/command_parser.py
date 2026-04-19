@@ -39,6 +39,9 @@ class CommandParser:
             "export": self._export_command,
             "clear": self._clear_command,
             "status": self._status_command,
+            "tokens": self._tokens_command,
+            "usage": self._usage_command,
+            "cost": self._cost_command,
             "exit": self._exit_command,
             "quit": self._exit_command,
         }
@@ -97,6 +100,12 @@ class CommandParser:
 • [cyan]/clear[/cyan] - Clear current conversation
 • [cyan]/status[/cyan] - Show conversation status
 • [cyan]/exit[/cyan] or [cyan]/quit[/cyan] - Exit DevMind
+
+[bold]Token Usage & Cost:[/bold]
+• [cyan]/tokens[/cyan] - Show current token usage statistics
+• [cyan]/usage[/cyan] - Show detailed usage report
+• [cyan]/usage --export <file>[/cyan] - Export usage report to file
+• [cyan]/cost[/cyan] - Show cost breakdown by model
 
 [bold]Input Tips:[/bold]
 • Use [cyan]```[/cyan] for multi-line code input
@@ -315,6 +324,82 @@ Available Tools: {task_summary.get('available_tools', 0)}
             title="[bold blue]Status[/bold blue]",
             border_style="bright_blue"
         ))
+
+    async def _tokens_command(self, args: List[str]) -> None:
+        """Show current token usage statistics."""
+        from .token_counter import token_counter
+        token_counter.show_token_stats()
+
+    async def _usage_command(self, args: List[str]) -> None:
+        """Show detailed usage report or export to file."""
+        from .token_counter import token_counter
+
+        if args:
+            # Export to file
+            if args[0] == "--export" and len(args) > 1:
+                filename = args[1]
+                report = token_counter.export_usage_report()
+                try:
+                    with open(filename, 'w', encoding='utf-8') as f:
+                        f.write(report)
+                    console.print(f"[green]Usage report exported to: {filename}[/green]")
+                except Exception as e:
+                    console.print(f"[red]Failed to export report: {e}[/red]")
+            else:
+                console.print("[yellow]Usage: /usage --export <filename>[/yellow]")
+        else:
+            # Show detailed report in console
+            report = token_counter.export_usage_report()
+            console.print("\n" + report)
+
+    async def _cost_command(self, args: List[str]) -> None:
+        """Show cost breakdown and estimates."""
+        from .token_counter import token_counter
+
+        # Show current session cost breakdown
+        session = token_counter.session_stats
+        console.print("\n[bold]💰 Cost Analysis[/bold]\n")
+
+        if session.total_requests == 0:
+            console.print("[yellow]No requests made in this session yet.[/yellow]")
+            return
+
+        table = Table(show_header=True, header_style="bold magenta")
+        table.add_column("Model", style="cyan")
+        table.add_column("Requests", justify="right", style="white")
+        table.add_column("Avg Tokens/Req", justify="right", style="green")
+        table.add_column("Est. Cost/Req", justify="right", style="yellow")
+
+        # Calculate per-model statistics
+        model_stats = {}
+        for usage in session.request_history:
+            if usage.model not in model_stats:
+                model_stats[usage.model] = {
+                    'requests': 0,
+                    'total_tokens': 0,
+                    'total_cost': 0.0
+                }
+            model_stats[usage.model]['requests'] += 1
+            model_stats[usage.model]['total_tokens'] += usage.total_tokens
+            model_stats[usage.model]['total_cost'] += usage.total_cost
+
+        for model, stats in model_stats.items():
+            avg_tokens = stats['total_tokens'] / stats['requests']
+            avg_cost = stats['total_cost'] / stats['requests']
+            table.add_row(
+                model,
+                f"{stats['requests']}",
+                f"{avg_tokens:.0f}",
+                f"${avg_cost:.6f}"
+            )
+
+        console.print(table)
+        console.print(f"\n[bold]Session Total: ${session.total_cost:.6f}[/bold]")
+
+        # Show cost breakdown
+        if session.total_tokens > 0:
+            avg_cost_per_1k = (session.total_cost / session.total_tokens) * 1000
+            console.print(f"Average cost per 1K tokens: ${avg_cost_per_1k:.6f}")
 
     async def _exit_command(self, args: List[str]) -> None:
         """Exit command."""

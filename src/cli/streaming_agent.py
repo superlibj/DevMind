@@ -27,7 +27,7 @@ console = Console()
 @dataclass
 class StreamingEvent:
     """Event emitted during streaming agent execution."""
-    type: str  # "thought", "action", "observation", "response", "error"
+    type: str  # "thought", "action", "observation", "response", "error", "token_usage"
     content: str
     metadata: Dict[str, Any] = None
 
@@ -46,6 +46,10 @@ class StreamingReActAgent:
         self.formatter = output_formatter
         self.current_iteration = 0
         self.streaming = False
+
+        # Import token counter
+        from .token_counter import token_counter
+        self.token_counter = token_counter
 
     async def process_user_message_stream(
         self,
@@ -113,14 +117,41 @@ class StreamingReActAgent:
             )
 
             try:
+                # Start token tracking
+                self.token_counter.start_request(self.agent.llm.config.model)
+
                 # Get LLM response (would need to modify for true streaming)
                 response = await self.agent.llm.generate(messages)
                 response_text = response.content.strip()
 
+                # Update token usage from response
+                if response.usage:
+                    self.token_counter.update_token_usage(
+                        prompt_tokens=response.usage.get("prompt_tokens", 0),
+                        completion_tokens=response.usage.get("completion_tokens", 0),
+                        total_tokens=response.usage.get("total_tokens", 0)
+                    )
+
+                # Finish token tracking
+                completed_usage = self.token_counter.finish_request()
+
+                # Emit token usage event
+                yield StreamingEvent(
+                    type="token_usage",
+                    content=f"Token usage: {completed_usage.total_tokens:,} tokens (${completed_usage.total_cost:.6f})",
+                    metadata={
+                        "prompt_tokens": completed_usage.prompt_tokens,
+                        "completion_tokens": completed_usage.completion_tokens,
+                        "total_tokens": completed_usage.total_tokens,
+                        "cost": completed_usage.total_cost,
+                        "model": completed_usage.model
+                    }
+                )
+
                 yield StreamingEvent(
                     type="llm_response",
                     content=response_text,
-                    metadata={"raw_response": response_text}
+                    metadata={"raw_response": response_text, "token_usage": completed_usage}
                 )
 
                 # Parse the response
@@ -381,6 +412,16 @@ class CLIAgentInterface:
                 elif event.type == "final_answer":
                     final_response = event.content
                     self.formatter.display_agent_response(final_response)
+
+                elif event.type == "token_usage":
+                    # Display real-time token usage
+                    metadata = event.metadata
+                    usage_text = (
+                        f"[dim]📊 Tokens: {metadata['total_tokens']:,} "
+                        f"(prompt: {metadata['prompt_tokens']:,}, completion: {metadata['completion_tokens']:,}) "
+                        f"| Cost: ${metadata['cost']:.6f} | Model: {metadata['model']}[/dim]"
+                    )
+                    console.print(usage_text)
 
                 elif event.type == "error":
                     self.formatter.display_error(event.content)
