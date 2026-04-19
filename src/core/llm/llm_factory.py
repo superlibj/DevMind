@@ -93,17 +93,20 @@ class LLMFactory:
             logger.warning(f"Model {model} not in registry, using LiteLLM with defaults")
 
         # Create LLM configuration
+        # Filter out parameters that are not valid LLMConfig parameters
+        invalid_llm_config_params = {'task_type', 'max_cost'}
+        llm_config_kwargs = {k: v for k, v in config_kwargs.items() if k not in invalid_llm_config_params}
         try:
             llm_config = self._model_config_manager.create_llm_config(
-                model, **config_kwargs
+                model, **llm_config_kwargs
             )
         except ValueError:
             # Model not in registry, create basic config
             llm_config = LLMConfig(
                 model=model,
-                max_tokens=config_kwargs.get("max_tokens", settings.llm.max_tokens),
-                temperature=config_kwargs.get("temperature", settings.llm.temperature),
-                timeout=config_kwargs.get("timeout", settings.llm.timeout_seconds)
+                max_tokens=llm_config_kwargs.get("max_tokens", settings.llm.max_tokens),
+                temperature=llm_config_kwargs.get("temperature", settings.llm.temperature),
+                timeout=llm_config_kwargs.get("timeout", settings.llm.timeout_seconds)
             )
 
         # Create provider instance

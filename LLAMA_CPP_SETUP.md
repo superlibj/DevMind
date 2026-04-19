@@ -2,30 +2,70 @@
 
 ## 🎯 Complete Setup Process
 
-### **Step 1: Download and Build llama.cpp**
+### **Step 1: Install Dependencies**
+
+llama.cpp now uses **CMake** as the primary build system. Install required dependencies first:
+
+```bash
+# Fedora/RHEL
+sudo dnf install cmake gcc-c++ make pkgconfig -y
+
+# Ubuntu/Debian
+sudo apt update && sudo apt install cmake build-essential pkg-config -y
+
+# macOS
+brew install cmake
+
+# Arch Linux
+sudo pacman -S cmake base-devel pkg-config --noconfirm
+```
+
+### **Step 2: Download and Build llama.cpp**
 
 ```bash
 # 1. Clone llama.cpp repository
 git clone https://github.com/ggerganov/llama.cpp.git
 cd llama.cpp
 
-# 2. Build the project (choose method suitable for your system)
-
-# Linux/macOS (CPU version)
-make
-
-# Or, if you have NVIDIA GPU
-make LLAMA_CUDA=1
-
-# Or, if you have AMD GPU
-make LLAMA_HIPBLAS=1
-
-# Or, use CMake build
+# 2. Build using CMake (RECOMMENDED - Modern Build System)
 mkdir build
 cd build
+
+# Basic CPU build
 cmake ..
-make -j 8
+make -j$(nproc)
 cd ..
+
+# 3. GPU Acceleration Options (if you have compatible hardware)
+
+# For NVIDIA GPU (CUDA)
+cmake .. -DGGML_CUDA=ON
+make -j$(nproc)
+
+# For AMD GPU (ROCm/HIP)
+cmake .. -DGGML_HIPBLAS=ON
+make -j$(nproc)
+
+# For Apple Silicon (Metal)
+cmake .. -DGGML_METAL=ON
+make -j$(nproc)
+
+# For Intel GPU (SYCL)
+cmake .. -DGGML_SYCL=ON
+make -j$(nproc)
+```
+
+### **Legacy Make Build (Deprecated but still works)**
+
+```bash
+# Only use if CMake is not available
+# Basic CPU build
+make
+
+# With GPU support
+make LLAMA_CUDA=1      # NVIDIA
+make LLAMA_HIPBLAS=1   # AMD
+make LLAMA_METAL=1     # Apple Silicon
 ```
 
 ### **Step 2: Download Model Files**
@@ -64,14 +104,18 @@ Download `.gguf` files to the `llama.cpp/models/` directory.
 # Run in the llama.cpp directory
 cd llama.cpp
 
-# Start server - use your downloaded model file
+# For CMake builds (recommended)
+./build/bin/llama-server -m models/CodeQwen1.5-7B-Chat.Q4_K_M.gguf --port 8080 --ctx-size 4096
+
+# For legacy Make builds
 ./server -m models/CodeQwen1.5-7B-Chat.Q4_K_M.gguf --port 8080 --ctx-size 4096
 
-# Or use Code Llama
-./server -m models/CodeLlama-7B-Instruct.Q4_K_M.gguf --port 8080 --ctx-size 4096
+# Alternative models:
+# Code Llama
+./build/bin/llama-server -m models/CodeLlama-7B-Instruct.Q4_K_M.gguf --port 8080 --ctx-size 4096
 
-# Or use DeepSeek Coder
-./server -m models/deepseek-coder-6.7b-instruct.Q4_K_M.gguf --port 8080 --ctx-size 4096
+# DeepSeek Coder
+./build/bin/llama-server -m models/deepseek-coder-6.7b-instruct.Q4_K_M.gguf --port 8080 --ctx-size 4096
 ```
 
 ### **Step 4: Test Server**
@@ -107,11 +151,18 @@ After setup is complete, your directory should look like this:
 ```
 /home/your-username/
 ├── llama.cpp/                    # llama.cpp main directory
-│   ├── server                    # Built server executable
+│   ├── build/                    # CMake build directory
+│   │   └── bin/
+│   │       ├── llama-server      # CMake built server executable
+│   │       ├── llama-cli         # Command line interface
+│   │       └── ...               # Other tools
+│   ├── server                    # Legacy Make built executable (if used)
 │   ├── models/                   # Model files directory
 │   │   ├── CodeQwen1.5-7B-Chat.Q4_K_M.gguf
 │   │   ├── CodeLlama-7B-Instruct.Q4_K_M.gguf
 │   │   └── deepseek-coder-6.7b-instruct.Q4_K_M.gguf
+│   ├── CMakeLists.txt           # CMake configuration
+│   ├── Makefile                 # Legacy Makefile (redirects to CMake)
 │   └── ...
 └── aiagent/                      # DevMind directory
     ├── main.py
@@ -123,7 +174,7 @@ After setup is complete, your directory should look like this:
 Create a startup script for convenience:
 
 ```bash
-# Create startup script
+# Create smart startup script that detects build type
 cat > start_llamacpp.sh << 'EOF'
 #!/bin/bash
 cd /path/to/llama.cpp
@@ -132,7 +183,19 @@ echo "Model: CodeQwen1.5-7B-Chat"
 echo "Port: 8080"
 echo "Press Ctrl+C to stop server"
 echo ""
-./server -m models/CodeQwen1.5-7B-Chat.Q4_K_M.gguf --port 8080 --ctx-size 4096
+
+# Use CMake build if available, fallback to Make build
+if [ -f "./build/bin/llama-server" ]; then
+    echo "Using CMake build..."
+    ./build/bin/llama-server -m models/CodeQwen1.5-7B-Chat.Q4_K_M.gguf --port 8080 --ctx-size 4096
+elif [ -f "./server" ]; then
+    echo "Using Make build..."
+    ./server -m models/CodeQwen1.5-7B-Chat.Q4_K_M.gguf --port 8080 --ctx-size 4096
+else
+    echo "Error: No llama.cpp server executable found!"
+    echo "Please build llama.cpp first using CMake or Make"
+    exit 1
+fi
 EOF
 
 # Set execute permissions
@@ -146,33 +209,79 @@ chmod +x start_llamacpp.sh
 
 ### **Lightweight Configuration (8GB RAM)**
 ```bash
+# CMake build
+./build/bin/llama-server -m models/CodeQwen1.5-7B-Chat.Q4_K_M.gguf --port 8080 --ctx-size 2048 --threads 4
+
+# Legacy Make build
 ./server -m models/CodeQwen1.5-7B-Chat.Q4_K_M.gguf --port 8080 --ctx-size 2048 --threads 4
 ```
 
 ### **Standard Configuration (16GB RAM)**
 ```bash
+# CMake build
+./build/bin/llama-server -m models/CodeQwen1.5-7B-Chat.Q4_K_M.gguf --port 8080 --ctx-size 4096 --threads 8
+
+# Legacy Make build
 ./server -m models/CodeQwen1.5-7B-Chat.Q4_K_M.gguf --port 8080 --ctx-size 4096 --threads 8
 ```
 
 ### **High-Performance Configuration (32GB+ RAM, GPU)**
 ```bash
+# CMake build with GPU
+./build/bin/llama-server -m models/CodeLlama-13B-Instruct.Q4_K_M.gguf --port 8080 --ctx-size 8192 --n-gpu-layers 32
+
+# Legacy Make build with GPU
 ./server -m models/CodeLlama-13B-Instruct.Q4_K_M.gguf --port 8080 --ctx-size 8192 --n-gpu-layers 32
 ```
 
 ## 🔍 **Troubleshooting**
 
-### **Build Failed**
+### **CMake Not Found**
 ```bash
-# Update system dependencies
+# Install CMake first
+# Fedora/RHEL
+sudo dnf install cmake gcc-c++ make -y
+
 # Ubuntu/Debian
-sudo apt update && sudo apt install build-essential cmake
+sudo apt update && sudo apt install cmake build-essential -y
 
 # macOS
 brew install cmake
 
-# Clean and rebuild
+# Arch Linux
+sudo pacman -S cmake base-devel --noconfirm
+```
+
+### **Build Failed**
+```bash
+# For CMake builds
+cd llama.cpp
+rm -rf build  # Clean previous build
+mkdir build && cd build
+cmake ..
+make -j$(nproc)
+
+# For legacy Make builds
 make clean
 make
+
+# If CMake configuration fails, try:
+cmake .. -DCMAKE_BUILD_TYPE=Release
+```
+
+### **"Build system changed" Error**
+```bash
+# This happens when using old Makefile directly
+# The project now uses CMake primarily
+
+# Solution: Use CMake instead
+mkdir build && cd build
+cmake ..
+make -j$(nproc)
+
+# Or if you must use Make:
+make clean
+make  # Will redirect to CMake automatically
 ```
 
 ### **Model File Not Found**

@@ -201,18 +201,25 @@ class ReActAgent:
 
     def _build_system_prompt(self) -> str:
         """Build the system prompt for ReAct behavior."""
-        return """You are an AI code development assistant that uses the ReAct (Reasoning + Acting) pattern.
+        return """You are DevMind, an AI code development assistant that helps with programming tasks.
 
-Your task is to help developers with code generation, review, refactoring, and debugging.
+Your primary goal is to be helpful and respond appropriately to user queries.
 
-IMPORTANT: You must follow this exact format for every response:
+FOR SIMPLE CONVERSATIONAL QUESTIONS (greetings, questions about yourself, general chat):
+- Respond directly without using tools
+- Be friendly and conversational
+- Use this format:
+  Thought: [Brief reasoning]
+  Final Answer: [Your direct response]
 
-Thought: [Your reasoning about what to do next]
-Action: [The action you want to take - either use a tool or provide final answer]
-Action Input: [Input for the action, in JSON format if using a tool]
+FOR CODING/DEVELOPMENT TASKS that require analysis or file operations:
+- Use the ReAct pattern with available tools
+- Follow this format:
+  Thought: [Your reasoning about what to do next]
+  Action: [The tool you want to use]
+  Action Input: [Input for the tool in JSON format]
 
-Or, if you have completed the task:
-
+When you have completed any task or want to provide a final response:
 Thought: [Your final reasoning]
 Final Answer: [Your complete response to the user]
 
@@ -220,16 +227,21 @@ Available tools:
 {tools}
 
 Guidelines:
-1. Always start with a Thought explaining your reasoning
-2. Use tools when you need to perform file operations, git commands, or code analysis
-3. Observe the results of your actions before proceeding
-4. Break complex tasks into smaller steps
-5. Ask for clarification if the task is unclear
-6. Provide comprehensive final answers with code examples when appropriate
-7. Always consider security implications of code changes
-8. Focus on best practices and clean, maintainable code
+1. FIRST determine if the query needs tools or if it's a simple conversation
+2. For greetings, name questions, or casual chat - respond directly without tools
+3. For code tasks - use tools when you need file operations, git commands, or analysis
+4. If a tool fails or doesn't exist, provide a helpful response without retrying
+5. Never use non-existent tools or hallucinate tool names
+6. Break complex tasks into smaller steps
+7. Ask for clarification if the task is unclear
+8. Always consider security implications of code changes
+9. Focus on best practices and clean, maintainable code
 
-Remember: You can only use the tools listed above. If you need to do something that requires a tool not listed, explain this limitation to the user."""
+Examples:
+- User: "What's your name?" → Direct answer, no tools needed
+- User: "Fix this bug in my code" → Use tools to read/analyze files
+- User: "Hello" → Friendly greeting, no tools needed
+"""
 
     async def process_user_message(
         self,
@@ -257,8 +269,14 @@ Remember: You can only use the tools listed above. If you need to do something t
         # Set current task in working memory
         self.working_memory.set_current_task(message, context or {})
 
+        # Handle simple conversational queries directly
+        if self._is_simple_conversational_query(message):
+            response = self._handle_conversational_query(message)
+            self.conversation_memory.add_assistant_message(response)
+            return response
+
         try:
-            # Execute ReAct loop
+            # Execute ReAct loop for complex tasks
             response = await self._react_loop()
 
             # Add final response to memory
@@ -278,6 +296,9 @@ Remember: You can only use the tools listed above. If you need to do something t
         Returns:
             Final response to the user
         """
+        consecutive_failures = 0
+        max_failures = 3
+
         while self.iteration_count < self.max_iterations:
             self.iteration_count += 1
             logger.debug(f"ReAct iteration {self.iteration_count}")
@@ -295,11 +316,20 @@ Remember: You can only use the tools listed above. If you need to do something t
             parsed_action = self._parse_response(response_text)
 
             if parsed_action is None:
+                consecutive_failures += 1
+                if consecutive_failures >= max_failures:
+                    # Too many consecutive failures, provide fallback response
+                    logger.warning("Too many parsing failures, providing fallback response")
+                    return "I'm having trouble understanding the request format. Let me provide a direct response instead."
+
                 # Invalid format, ask LLM to correct
                 self.conversation_memory.add_observation(
-                    "Invalid response format. Please follow the Thought/Action/Action Input format."
+                    "Invalid response format. Please use either a direct Final Answer or the Thought/Action/Action Input format."
                 )
                 continue
+
+            # Reset failure counter on successful parse
+            consecutive_failures = 0
 
             # Handle different action types
             if parsed_action.action_type == "final_answer":
@@ -308,13 +338,27 @@ Remember: You can only use the tools listed above. If you need to do something t
                 return parsed_action.arguments.get("answer", response_text)
 
             elif parsed_action.action_type == "tool_use":
+                # Check if tool exists before executing
+                tool = self.tools.get_tool(parsed_action.tool_name)
+                if tool is None:
+                    # Tool doesn't exist, provide helpful response
+                    available_tools = [t.name for t in self.tools.list_tools()]
+                    error_msg = f"Tool '{parsed_action.tool_name}' is not available. Available tools are: {', '.join(available_tools)}"
+                    self.conversation_memory.add_observation(error_msg)
+
+                    # If it's a simple query that doesn't need tools, suggest direct response
+                    user_message = self.working_memory.get_current_task().get("task", "")
+                    if self._is_simple_conversational_query(user_message):
+                        return "I'm DevMind, an AI assistant designed to help with software development tasks. How can I help you with your coding needs today?"
+                    continue
+
                 # Execute tool
                 await self._execute_tool_action(parsed_action)
 
             else:
                 # Unknown action type
                 self.conversation_memory.add_observation(
-                    f"Unknown action type: {parsed_action.action_type}"
+                    f"Unknown action type: {parsed_action.action_type}. Please use 'Final Answer' to complete the response."
                 )
 
         # Max iterations reached
@@ -517,6 +561,88 @@ Remember: You can only use the tools listed above. If you need to do something t
         self.iteration_count = 0
 
         logger.info("Agent memory cleared")
+
+    def _is_simple_conversational_query(self, message: str) -> bool:
+        """Check if a message is a simple conversational query that doesn't need tools.
+
+        Args:
+            message: The user message
+
+        Returns:
+            True if it's a simple conversational query
+        """
+        message_lower = message.lower().strip()
+
+        # Common conversational patterns
+        conversational_patterns = [
+            "你叫什么名字", "what's your name", "what is your name", "who are you",
+            "你是谁", "hello", "hi", "hey", "你好", "how are you", "你怎么样",
+            "what can you do", "你能做什么", "help", "帮助", "thanks", "谢谢",
+            "goodbye", "bye", "再见", "what are you", "你是什么"
+        ]
+
+        # Check for exact matches or partial matches
+        for pattern in conversational_patterns:
+            if pattern in message_lower:
+                return True
+
+        # Check if message is very short and likely conversational
+        if len(message.split()) <= 3 and not any(word in message_lower for word in
+            ["code", "bug", "error", "file", "debug", "fix", "write", "read", "analyze"]):
+            return True
+
+        return False
+
+    def _handle_conversational_query(self, message: str) -> str:
+        """Handle simple conversational queries directly.
+
+        Args:
+            message: The user message
+
+        Returns:
+            Direct response to the conversational query
+        """
+        message_lower = message.lower().strip()
+
+        # Handle name queries
+        if any(pattern in message_lower for pattern in ["你叫什么名字", "what's your name", "what is your name", "who are you", "你是谁"]):
+            return "我是DevMind，一个专门为软件开发设计的AI助手。我可以帮助您进行代码生成、审查、重构、调试等各种开发任务。有什么我可以帮助您的吗？"
+
+        # Handle greetings
+        if any(pattern in message_lower for pattern in ["hello", "hi", "hey", "你好"]):
+            return "你好！我是DevMind，您的AI开发助手。我可以帮您处理各种编程任务，包括代码编写、调试、重构和代码审查。请告诉我您需要什么帮助。"
+
+        # Handle capability queries
+        if any(pattern in message_lower for pattern in ["what can you do", "你能做什么", "help", "帮助"]):
+            return """我是DevMind，可以为您提供以下开发服务：
+
+🔧 **代码开发**
+- 代码生成和编写
+- 代码重构和优化
+- 代码审查和质量检查
+
+🐛 **调试支持**
+- 错误分析和修复
+- 性能优化建议
+- 代码逻辑分析
+
+📁 **文件操作**
+- 读取和编辑文件
+- 项目结构分析
+- Git操作支持
+
+请告诉我您的具体需求，我会竭诚为您服务！"""
+
+        # Handle thanks
+        if any(pattern in message_lower for pattern in ["thanks", "thank you", "谢谢"]):
+            return "不用谢！很高兴能帮助您。如果还有其他开发问题，随时告诉我。"
+
+        # Handle goodbye
+        if any(pattern in message_lower for pattern in ["goodbye", "bye", "再见"]):
+            return "再见！祝您编程愉快，有问题随时找我。"
+
+        # Default conversational response
+        return "我是DevMind，一个专门为软件开发设计的AI助手。我可以帮助您处理各种编程任务。请告诉我您需要什么具体帮助？"
 
     def export_session(self) -> Dict[str, Any]:
         """Export the current session.
