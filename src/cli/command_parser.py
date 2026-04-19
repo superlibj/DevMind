@@ -12,6 +12,7 @@ from rich.panel import Panel
 from rich.text import Text
 
 from ..core.llm.model_config import model_config_manager
+from .local_models import local_model_manager, OllamaHelper, LlamaCppHelper
 
 console = Console()
 
@@ -32,6 +33,9 @@ class CommandParser:
             "help": self._help_command,
             "model": self._model_command,
             "models": self._list_models_command,
+            "local": self._local_models_command,
+            "ollama": self._ollama_command,
+            "llamacpp": self._llamacpp_command,
             "save": self._save_command,
             "load": self._load_command,
             "sessions": self._sessions_command,
@@ -96,6 +100,9 @@ class CommandParser:
 [bold]Model Management:[/bold]
 • [cyan]/model <model_name>[/cyan] - Switch to a different model
 • [cyan]/models [provider][/cyan] - List available models
+• [cyan]/local[/cyan] - Show local model servers (Ollama, llama.cpp)
+• [cyan]/ollama[/cyan] - Show Ollama setup and available models
+• [cyan]/llamacpp[/cyan] - Show llama.cpp setup instructions
 
 [bold]Conversation:[/bold]
 • [cyan]/clear[/cyan] - Clear current conversation
@@ -424,6 +431,93 @@ Available Tools: {task_summary.get('available_tools', 0)}
                 console.print(f"[cyan]思考过程显示已{status}[/cyan]")
         else:
             console.print("[red]无法控制思考过程显示[/red]")
+
+    async def _local_models_command(self, args: List[str]) -> None:
+        """Show local model servers and available models."""
+        console.print("[bold cyan]🏠 Discovering Local Models...[/bold cyan]\n")
+
+        try:
+            # Discover models from local servers
+            discovered = await local_model_manager.discover_models()
+
+            # Show server status table
+            local_model_manager.show_local_models_table()
+
+            # Show summary
+            summary = local_model_manager.get_server_status_summary()
+            console.print(f"\n{summary}")
+
+            # Show usage examples if models found
+            active_models = []
+            for server_models in discovered.values():
+                active_models.extend(server_models)
+
+            if active_models:
+                console.print(f"\n[bold]💡 Usage Examples:[/bold]")
+                for model in active_models[:3]:  # Show first 3 models
+                    console.print(f"  [cyan]/model {model}[/cyan]")
+                if len(active_models) > 3:
+                    console.print(f"  ... and {len(active_models) - 3} more models")
+            else:
+                console.print("\n[yellow]No local models found. Use [cyan]/ollama[/cyan] or [cyan]/llamacpp[/cyan] for setup instructions.[/yellow]")
+
+        except Exception as e:
+            console.print(f"[red]Error discovering local models: {e}[/red]")
+
+    async def _ollama_command(self, args: List[str]) -> None:
+        """Show Ollama information and setup instructions."""
+        if args and args[0] == "setup":
+            # Show setup instructions
+            OllamaHelper.show_setup_instructions()
+        else:
+            # Show available Ollama models and quick setup
+            console.print("[bold cyan]🦙 Ollama Integration[/bold cyan]\n")
+
+            try:
+                # Try to discover Ollama models
+                discovered = await local_model_manager.discover_models()
+                ollama_models = discovered.get("ollama", [])
+
+                if ollama_models:
+                    console.print(f"[green]✓[/green] Ollama server found with [cyan]{len(ollama_models)}[/cyan] models:")
+                    for model in ollama_models:
+                        console.print(f"  • [cyan]{model}[/cyan]")
+
+                    console.print(f"\n[bold]Quick start:[/bold]")
+                    console.print(f"  [cyan]/model {ollama_models[0]}[/cyan]")
+                else:
+                    console.print("[yellow]⚠[/yellow] Ollama server not found or no models installed")
+                    console.print("\n[bold]Recommended models for coding:[/bold]")
+                    for model in OllamaHelper.get_recommended_coding_models():
+                        console.print(f"  ollama pull [cyan]{model}[/cyan]")
+
+            except Exception as e:
+                console.print(f"[red]Error checking Ollama: {e}[/red]")
+
+            console.print(f"\n[dim]Use [cyan]/ollama setup[/cyan] for detailed setup instructions.[/dim]")
+
+    async def _llamacpp_command(self, args: List[str]) -> None:
+        """Show llama.cpp information and setup instructions."""
+        console.print("[bold cyan]🦙 llama.cpp Integration[/bold cyan]\n")
+
+        try:
+            # Try to discover llama.cpp models
+            discovered = await local_model_manager.discover_models()
+            llamacpp_models = discovered.get("llama.cpp", [])
+
+            if llamacpp_models:
+                console.print(f"[green]✓[/green] llama.cpp server found with [cyan]{len(llamacpp_models)}[/cyan] models:")
+                for model in llamacpp_models:
+                    console.print(f"  • [cyan]{model}[/cyan]")
+
+                console.print(f"\n[bold]Quick start:[/bold]")
+                console.print(f"  [cyan]/model llama-cpp-local[/cyan]")
+            else:
+                console.print("[yellow]⚠[/yellow] llama.cpp server not found (http://localhost:8080)")
+                LlamaCppHelper.show_setup_instructions()
+
+        except Exception as e:
+            console.print(f"[red]Error checking llama.cpp: {e}[/red]")
 
     async def _exit_command(self, args: List[str]) -> None:
         """Exit command."""

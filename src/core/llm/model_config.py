@@ -17,6 +17,7 @@ class ProviderType(Enum):
     HUGGINGFACE = "huggingface"
     COHERE = "cohere"
     OLLAMA = "ollama"
+    LLAMA_CPP = "llama_cpp"
     DEEPSEEK = "deepseek"
 
 
@@ -207,7 +208,33 @@ class ModelConfigManager:
                 description="DeepSeek Coder V2 - Advanced coding with extended context and tool calling"
             ),
 
-            # Local Models (Ollama examples)
+            # Ollama Models
+            "llama3.2": ModelInfo(
+                name="llama3.2",
+                provider=ProviderType.OLLAMA,
+                max_tokens=8192,
+                context_window=128000,
+                capabilities=[
+                    ModelCapability.CHAT,
+                    ModelCapability.CODE_GENERATION,
+                    ModelCapability.COMPLETION
+                ],
+                supports_tools=False,
+                description="Llama 3.2 - Advanced reasoning and coding capabilities"
+            ),
+            "llama3.1": ModelInfo(
+                name="llama3.1",
+                provider=ProviderType.OLLAMA,
+                max_tokens=8192,
+                context_window=128000,
+                capabilities=[
+                    ModelCapability.CHAT,
+                    ModelCapability.CODE_GENERATION,
+                    ModelCapability.COMPLETION
+                ],
+                supports_tools=False,
+                description="Llama 3.1 - Large context model with strong performance"
+            ),
             "codellama": ModelInfo(
                 name="codellama",
                 provider=ProviderType.OLLAMA,
@@ -219,19 +246,34 @@ class ModelConfigManager:
                     ModelCapability.COMPLETION
                 ],
                 supports_tools=False,
-                description="Code Llama for code generation"
+                description="Code Llama 7B/13B/34B - Specialized for code generation"
             ),
-            "llama2": ModelInfo(
-                name="llama2",
+            "codellama:13b": ModelInfo(
+                name="codellama:13b",
                 provider=ProviderType.OLLAMA,
                 max_tokens=4096,
-                context_window=4096,
+                context_window=16384,
                 capabilities=[
                     ModelCapability.CHAT,
+                    ModelCapability.CODE_GENERATION,
+                    ModelCapability.CODE_REVIEW
+                ],
+                supports_tools=False,
+                description="Code Llama 13B - Better coding performance"
+            ),
+            "codellama:34b": ModelInfo(
+                name="codellama:34b",
+                provider=ProviderType.OLLAMA,
+                max_tokens=4096,
+                context_window=16384,
+                capabilities=[
+                    ModelCapability.CHAT,
+                    ModelCapability.CODE_GENERATION,
+                    ModelCapability.CODE_REVIEW,
                     ModelCapability.COMPLETION
                 ],
                 supports_tools=False,
-                description="Llama 2 base model"
+                description="Code Llama 34B - Best coding performance"
             ),
             "deepseek-coder": ModelInfo(
                 name="deepseek-coder",
@@ -244,7 +286,127 @@ class ModelConfigManager:
                     ModelCapability.CODE_REVIEW
                 ],
                 supports_tools=False,
-                description="DeepSeek Coder for programming tasks"
+                description="DeepSeek Coder - Excellent for programming tasks"
+            ),
+            "qwen2.5-coder": ModelInfo(
+                name="qwen2.5-coder",
+                provider=ProviderType.OLLAMA,
+                max_tokens=8192,
+                context_window=32768,
+                capabilities=[
+                    ModelCapability.CHAT,
+                    ModelCapability.CODE_GENERATION,
+                    ModelCapability.CODE_REVIEW,
+                    ModelCapability.COMPLETION
+                ],
+                supports_tools=False,
+                description="Qwen2.5 Coder - Strong multilingual coding model"
+            ),
+            "starcoder2": ModelInfo(
+                name="starcoder2",
+                provider=ProviderType.OLLAMA,
+                max_tokens=4096,
+                context_window=16384,
+                capabilities=[
+                    ModelCapability.CODE_GENERATION,
+                    ModelCapability.COMPLETION,
+                    ModelCapability.CODE_REVIEW
+                ],
+                supports_tools=False,
+                description="StarCoder2 - High-quality code generation"
+            ),
+            "mistral": ModelInfo(
+                name="mistral",
+                provider=ProviderType.OLLAMA,
+                max_tokens=8192,
+                context_window=32768,
+                capabilities=[
+                    ModelCapability.CHAT,
+                    ModelCapability.COMPLETION,
+                    ModelCapability.CODE_GENERATION
+                ],
+                supports_tools=False,
+                description="Mistral 7B - Fast and capable general model"
+            ),
+            "mixtral": ModelInfo(
+                name="mixtral",
+                provider=ProviderType.OLLAMA,
+                max_tokens=8192,
+                context_window=32768,
+                capabilities=[
+                    ModelCapability.CHAT,
+                    ModelCapability.COMPLETION,
+                    ModelCapability.CODE_GENERATION,
+                    ModelCapability.COMPLETION
+                ],
+                supports_tools=False,
+                description="Mixtral 8x7B - Mixture of experts model with excellent performance"
+            ),
+            "llama2": ModelInfo(
+                name="llama2",
+                provider=ProviderType.OLLAMA,
+                max_tokens=4096,
+                context_window=4096,
+                capabilities=[
+                    ModelCapability.CHAT,
+                    ModelCapability.COMPLETION
+                ],
+                supports_tools=False,
+                description="Llama 2 - Reliable foundation model"
+            ),
+            "phi3": ModelInfo(
+                name="phi3",
+                provider=ProviderType.OLLAMA,
+                max_tokens=4096,
+                context_window=128000,
+                capabilities=[
+                    ModelCapability.CHAT,
+                    ModelCapability.CODE_GENERATION,
+                    ModelCapability.COMPLETION
+                ],
+                supports_tools=False,
+                description="Phi-3 - Compact but powerful model"
+            ),
+
+            # Llama.cpp Models
+            "llama-cpp-local": ModelInfo(
+                name="llama-cpp-local",
+                provider=ProviderType.LLAMA_CPP,
+                max_tokens=4096,
+                context_window=8192,
+                capabilities=[
+                    ModelCapability.CHAT,
+                    ModelCapability.COMPLETION,
+                    ModelCapability.CODE_GENERATION
+                ],
+                supports_tools=False,
+                description="Local model via llama.cpp server"
+            ),
+            "llama-cpp-codeqwen": ModelInfo(
+                name="llama-cpp-codeqwen",
+                provider=ProviderType.LLAMA_CPP,
+                max_tokens=4096,
+                context_window=32768,
+                capabilities=[
+                    ModelCapability.CODE_GENERATION,
+                    ModelCapability.CODE_REVIEW,
+                    ModelCapability.CHAT
+                ],
+                supports_tools=False,
+                description="CodeQwen via llama.cpp for coding tasks"
+            ),
+            "llama-cpp-codellama": ModelInfo(
+                name="llama-cpp-codellama",
+                provider=ProviderType.LLAMA_CPP,
+                max_tokens=4096,
+                context_window=16384,
+                capabilities=[
+                    ModelCapability.CODE_GENERATION,
+                    ModelCapability.COMPLETION,
+                    ModelCapability.CHAT
+                ],
+                supports_tools=False,
+                description="Code Llama via llama.cpp server"
             ),
         }
 

@@ -147,6 +147,16 @@ class LiteLLMProvider(BaseLLM):
         if model.startswith("deepseek-") and "/" not in model:
             return f"deepseek/{model}"
 
+        # Check model provider type from config
+        model_info = self._model_config_manager.get_model_info(model)
+        if model_info:
+            if model_info.provider.value == "ollama":
+                # Ollama models need provider prefix for LiteLLM
+                return f"ollama/{model}"
+            elif model_info.provider.value == "llama_cpp":
+                # llama.cpp uses OpenAI-compatible API endpoint
+                return model  # Use model name as-is for llama.cpp
+
         # Other models pass through unchanged
         return model
 
@@ -162,6 +172,18 @@ class LiteLLMProvider(BaseLLM):
             "timeout": config.timeout,
             "stream": config.stream,
         }
+
+        # Add local endpoint configuration for Ollama and llama.cpp
+        model_info = self._model_config_manager.get_model_info(config.model)
+        if model_info:
+            if model_info.provider.value == "ollama":
+                # Default Ollama endpoint
+                params["api_base"] = "http://localhost:11434"
+            elif model_info.provider.value == "llama_cpp":
+                # Default llama.cpp endpoint
+                params["api_base"] = "http://localhost:8080"
+                # Use OpenAI-compatible format for llama.cpp
+                params["api_key"] = "dummy"  # llama.cpp doesn't require API key
 
         # Add stop sequences if provided
         if config.stop:
