@@ -102,14 +102,14 @@ class StreamingReActAgent:
 
             # Generate meaningful iteration description
             step_descriptions = [
-                "开始分析任务",
-                "深入理解需求",
-                "制定执行计划",
-                "执行具体操作",
-                "检查执行结果",
-                "优化解决方案",
-                "验证最终结果",
-                "完善输出内容"
+                "Starting task analysis",
+                "Understanding requirements",
+                "Planning execution",
+                "Executing operations",
+                "Checking results",
+                "Optimizing solution",
+                "Verifying final result",
+                "Refining output"
             ]
 
             desc_index = min(self.current_iteration - 1, len(step_descriptions) - 1)
@@ -126,14 +126,14 @@ class StreamingReActAgent:
 
             # Generate response with streaming
             thinking_descriptions = [
-                "分析任务需求...",
-                "规划执行步骤...",
-                "评估当前进展...",
-                "准备下一步行动...",
-                "整合执行结果...",
-                "完善解决方案...",
-                "验证执行效果...",
-                "总结处理结果..."
+                "Analyzing task requirements...",
+                "Planning execution steps...",
+                "Evaluating current progress...",
+                "Preparing next action...",
+                "Integrating execution results...",
+                "Refining solution...",
+                "Verifying execution results...",
+                "Summarizing process results..."
             ]
 
             # Choose description based on iteration number
@@ -415,11 +415,11 @@ class CLIAgentInterface:
                 if event.type == "iteration_start":
                     if not self.hide_iterations:
                         # Use the meaningful description instead of iteration number
-                        step_desc = event.metadata.get('description', f"思考步骤 {event.metadata['iteration']}")
+                        step_desc = event.metadata.get('description', f"Thinking step {event.metadata['iteration']}")
                         console.print(f"[dim]💭 {step_desc}[/dim]")
 
                 elif event.type == "thinking":
-                    thinking_text = event.content if event.content != "Generating response..." else "🤔 思考中..."
+                    thinking_text = event.content if event.content != "Generating response..." else "🤔 Thinking..."
                     with console.status(f"[bold green]{thinking_text}", spinner="dots"):
                         await asyncio.sleep(0.1)  # Small delay for visual effect
 

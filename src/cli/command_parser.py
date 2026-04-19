@@ -420,17 +420,17 @@ Available Tools: {task_summary.get('available_tools', 0)}
 
             if args and args[0].lower() in ['on', 'show', 'true']:
                 self.repl.agent_interface.hide_iterations = False
-                console.print("[green]思考过程显示已开启[/green]")
+                console.print("[green]Thinking process display enabled[/green]")
             elif args and args[0].lower() in ['off', 'hide', 'false']:
                 self.repl.agent_interface.hide_iterations = True
-                console.print("[yellow]思考过程显示已关闭[/yellow]")
+                console.print("[yellow]Thinking process display disabled[/yellow]")
             else:
                 # Toggle
                 self.repl.agent_interface.hide_iterations = not current
-                status = "关闭" if self.repl.agent_interface.hide_iterations else "开启"
-                console.print(f"[cyan]思考过程显示已{status}[/cyan]")
+                status = "disabled" if self.repl.agent_interface.hide_iterations else "enabled"
+                console.print(f"[cyan]Thinking process display is {status}[/cyan]")
         else:
-            console.print("[red]无法控制思考过程显示[/red]")
+            console.print("[red]Unable to control thinking process display[/red]")
 
     async def _local_models_command(self, args: List[str]) -> None:
         """Show local model servers and available models."""

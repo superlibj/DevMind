@@ -575,10 +575,10 @@ Examples:
 
         # Common conversational patterns
         conversational_patterns = [
-            "你叫什么名字", "what's your name", "what is your name", "who are you",
-            "你是谁", "hello", "hi", "hey", "你好", "how are you", "你怎么样",
-            "what can you do", "你能做什么", "help", "帮助", "thanks", "谢谢",
-            "goodbye", "bye", "再见", "what are you", "你是什么"
+            "what is your name", "what's your name", "who are you", "tell me your name",
+            "who you are", "hello", "hi", "hey", "greetings", "how are you", "how do you do",
+            "what can you do", "what are your capabilities", "help", "assist", "thanks", "thank you",
+            "goodbye", "bye", "farewell", "what are you", "introduce yourself"
         ]
 
         # Check for exact matches or partial matches
@@ -605,44 +605,44 @@ Examples:
         message_lower = message.lower().strip()
 
         # Handle name queries
-        if any(pattern in message_lower for pattern in ["你叫什么名字", "what's your name", "what is your name", "who are you", "你是谁"]):
-            return "我是DevMind，一个专门为软件开发设计的AI助手。我可以帮助您进行代码生成、审查、重构、调试等各种开发任务。有什么我可以帮助您的吗？"
+        if any(pattern in message_lower for pattern in ["what's your name", "what is your name", "who are you", "tell me your name", "who you are"]):
+            return "I'm DevMind, an AI assistant specifically designed for software development. I can help you with code generation, review, refactoring, debugging, and various development tasks. What can I help you with?"
 
         # Handle greetings
-        if any(pattern in message_lower for pattern in ["hello", "hi", "hey", "你好"]):
-            return "你好！我是DevMind，您的AI开发助手。我可以帮您处理各种编程任务，包括代码编写、调试、重构和代码审查。请告诉我您需要什么帮助。"
+        if any(pattern in message_lower for pattern in ["hello", "hi", "hey", "greetings"]):
+            return "Hello! I'm DevMind, your AI development assistant. I can help you with various programming tasks including code writing, debugging, refactoring, and code review. Please tell me what you need help with."
 
         # Handle capability queries
-        if any(pattern in message_lower for pattern in ["what can you do", "你能做什么", "help", "帮助"]):
-            return """我是DevMind，可以为您提供以下开发服务：
+        if any(pattern in message_lower for pattern in ["what can you do", "what are your capabilities", "help", "assist"]):
+            return """I'm DevMind, and I can provide the following development services:
 
-🔧 **代码开发**
-- 代码生成和编写
-- 代码重构和优化
-- 代码审查和质量检查
+🔧 **Code Development**
+- Code generation and writing
+- Code refactoring and optimization
+- Code review and quality checking
 
-🐛 **调试支持**
-- 错误分析和修复
-- 性能优化建议
-- 代码逻辑分析
+🐛 **Debugging Support**
+- Error analysis and fixing
+- Performance optimization suggestions
+- Code logic analysis
 
-📁 **文件操作**
-- 读取和编辑文件
-- 项目结构分析
-- Git操作支持
+📁 **File Operations**
+- Reading and editing files
+- Project structure analysis
+- Git operation support
 
-请告诉我您的具体需求，我会竭诚为您服务！"""
+Please tell me your specific needs, and I'll be happy to help!"""
 
         # Handle thanks
-        if any(pattern in message_lower for pattern in ["thanks", "thank you", "谢谢"]):
-            return "不用谢！很高兴能帮助您。如果还有其他开发问题，随时告诉我。"
+        if any(pattern in message_lower for pattern in ["thanks", "thank you"]):
+            return "You're welcome! I'm glad I could help. If you have any other development questions, feel free to ask me anytime."
 
         # Handle goodbye
-        if any(pattern in message_lower for pattern in ["goodbye", "bye", "再见"]):
-            return "再见！祝您编程愉快，有问题随时找我。"
+        if any(pattern in message_lower for pattern in ["goodbye", "bye", "farewell"]):
+            return "Goodbye! Happy coding, and feel free to reach out if you have any questions."
 
         # Default conversational response
-        return "我是DevMind，一个专门为软件开发设计的AI助手。我可以帮助您处理各种编程任务。请告诉我您需要什么具体帮助？"
+        return "I'm DevMind, an AI assistant specifically designed for software development. I can help you with various programming tasks. What specific help do you need?"
 
     def export_session(self) -> Dict[str, Any]:
         """Export the current session.
