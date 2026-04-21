@@ -218,11 +218,30 @@ ONLY use tools for these specific cases:
 Available tools:
 {tools}
 
-CRITICAL TOOL USAGE RULES:
-- Action must be EXACTLY one of the tool names listed above
-- NEVER use descriptions like "I will review the file" as actions
-- Valid: "file_read" | Invalid: "I will read the file to check for errors"
-- When in doubt, provide a direct Final Answer instead
+🚨 MANDATORY FORMAT REQUIREMENTS 🚨
+
+When using tools, you MUST use this EXACT format:
+
+Action: [exact_tool_name]
+Action Input: [valid_json_object]
+
+❌ NEVER EVER use these WRONG formats:
+- file_write(input={{"file_path": "test.js"}})  ← FUNCTION CALL SYNTAX - FORBIDDEN
+- tool_name(args)  ← ANY FUNCTION CALL SYNTAX - FORBIDDEN
+- file_write({{"file_path": "test.js"}})  ← MISSING "Action Input:" - FORBIDDEN
+- Action: I will write a file  ← DESCRIPTION AS ACTION - FORBIDDEN
+- Action: write the code to file  ← SENTENCE AS ACTION - FORBIDDEN
+
+✅ ONLY use this CORRECT format:
+Action: file_write
+Action Input: {{"file_path": "test.js", "content": "console.log('hello')"}}
+
+🔥 CRITICAL RULES:
+1. Action MUST be EXACTLY one word from the tool names: file_read, file_write, git_status
+2. Action Input MUST be valid JSON with double quotes
+3. NEVER use function call syntax like tool_name(args)
+4. NEVER use descriptions or sentences as Action names
+5. If you're unsure about format, use Final Answer instead
 
 Examples:
 
@@ -235,20 +254,30 @@ Thought: The user wants me to read a specific file
 Action: file_read
 Action Input: {{"file_path": "index.html"}}
 
+USER: "Create a simple JavaScript file"
+Thought: The user wants me to create a file with JavaScript code
+Action: file_write
+Action Input: {{"file_path": "script.js", "content": "console.log('Hello, World!');"}}
+
 USER: "How do I fix JavaScript errors?"
 Thought: This is asking for general advice, no file access needed
 Final Answer: Here are common ways to debug JavaScript errors...
 
-USER: "What's wrong with my code?"
-Thought: I need to see the actual code file to help
+⚠️ FORMAT VIOLATIONS WILL CAUSE ERRORS:
+❌ Action: file_write(input={{"file_path": "test.js", "content": "code"}})
+❌ Action: Read the file and analyze it
+❌ Action: write_file
+❌ file_read({{"file_path": "test.js"}})
+
+✅ ONLY CORRECT FORMAT:
 Action: file_read
-Action Input: {{"file_path": "filename.js"}}
+Action Input: {{"file_path": "test.js"}}
 
 Guidelines:
 1. DEFAULT to direct answers - tools are the exception, not the rule
 2. Only use tools when you absolutely must access files/commands
-3. NEVER use sentences or descriptions as Action names
-4. When unsure, always choose Final Answer over tools
+3. Use EXACT format: "Action: tool_name" then "Action Input: json_object"
+4. When unsure about format, always choose Final Answer over tools
 5. Be helpful and comprehensive in your direct answers
 """
 
@@ -332,11 +361,19 @@ The Deepseek API seems to be returning empty or malformed responses. This is oft
             Final response to the user
         """
         consecutive_failures = 0
-        max_failures = 2  # Reduced from 3 to 2 for faster fallback
+        max_failures = 2  # Maximum consecutive failures before fallback
+        max_loop_iterations = 8  # Hard limit to prevent runaway loops
+        format_error_history = []  # Track repeated format errors
 
-        while self.iteration_count < self.max_iterations:
+        while self.iteration_count < min(self.max_iterations, max_loop_iterations):
             self.iteration_count += 1
-            logger.debug(f"ReAct iteration {self.iteration_count}")
+            logger.debug(f"ReAct iteration {self.iteration_count}/{max_loop_iterations}")
+
+            # Early termination if we detect a runaway loop
+            if self.iteration_count >= max_loop_iterations:
+                logger.warning(f"Reached maximum loop iterations ({max_loop_iterations}), terminating")
+                user_message = self.working_memory.get_current_task().get("task", "")
+                return f"I've attempted to process your request but encountered persistent formatting issues. For the task '{user_message[:100]}...', I recommend trying with a different model or simplifying the request. You can use `/model gpt-3.5-turbo` or `/model claude-3-sonnet-20240229` for more reliable results."
 
             # Get current conversation context
             messages = self._build_messages_for_llm()
@@ -352,6 +389,31 @@ The Deepseek API seems to be returning empty or malformed responses. This is oft
 
             if parsed_action is None:
                 consecutive_failures += 1
+
+                # Track what type of format error this is
+                error_type = "unknown"
+                if "function call pattern" in response_text.lower():
+                    error_type = "function_call"
+                elif "action:" not in response_text.lower():
+                    error_type = "missing_action"
+                elif "invalid tool name" in str(self.conversation_memory.get_messages()[-1:]):
+                    error_type = "invalid_tool"
+
+                format_error_history.append(error_type)
+
+                # Check for repeated identical errors (indicates model is stuck)
+                if len(format_error_history) >= 3:
+                    recent_errors = format_error_history[-3:]
+                    if len(set(recent_errors)) == 1:  # All same error type
+                        logger.warning(f"Detected repeated format error pattern: {error_type}")
+                        user_message = self.working_memory.get_current_task().get("task", "")
+
+                        # Provide a helpful fallback response based on the original request
+                        if "create" in user_message.lower() or "write" in user_message.lower():
+                            return "I understand you want me to create or write something. Due to technical formatting issues, I can't execute file operations right now. Please try using a different model like `/model gpt-3.5-turbo` for file creation tasks, or provide your request in a different way."
+                        else:
+                            return f"I've encountered persistent formatting issues while processing your request about '{user_message[:100]}...'. Please try switching to a more compatible model using `/model claude-3-sonnet-20240229` or `/model gpt-3.5-turbo`."
+
                 if consecutive_failures >= max_failures:
                     # Too many consecutive failures, provide helpful fallback response
                     logger.warning("Too many parsing failures, providing direct answer")
@@ -363,17 +425,46 @@ The Deepseek API seems to be returning empty or malformed responses. This is oft
                         if final_answer_match:
                             return final_answer_match.group(1).strip()
 
+                    # Clear some conversation history to prevent context pollution
+                    messages = self.conversation_memory.get_messages()
+                    if len(messages) > 10:
+                        # Keep first few messages (user request) and remove middle error messages
+                        self.conversation_memory._messages = messages[:3] + messages[-2:]
+                        logger.debug("Cleared conversation history to prevent context pollution")
+
                     # Generic helpful response
                     return f"I can help you with that request. Based on your question about '{user_message[:50]}...', I'd recommend checking the relevant documentation or providing more specific details about what you need assistance with."
 
-                # Invalid format, ask LLM to correct with stronger guidance
-                self.conversation_memory.add_observation(
-                    "IMPORTANT: Use EXACT tool names from the available tools list, or provide a Final Answer directly. Do not use descriptions as action names."
-                )
+                # Only add error message if we haven't seen this error type repeatedly
+                if format_error_history.count(error_type) <= 2:
+                    error_msg = f"""🚨 FORMAT ERROR #{consecutive_failures}/{max_failures} 🚨
+
+CRITICAL: You MUST use this EXACT format:
+
+Action: [exact_tool_name]
+Action Input: [valid_json]
+
+Available tools: {', '.join([tool.name for tool in self.tools.list_tools(enabled_only=True)])}
+
+❌ FORBIDDEN: file_write(input={{...}}) ← NEVER use this syntax
+❌ FORBIDDEN: Descriptions as actions
+
+✅ REQUIRED:
+Action: file_write
+Action Input: {{"file_path": "test.js", "content": "code here"}}
+
+OR use Final Answer if no tools needed."""
+
+                    self.conversation_memory.add_observation(error_msg)
+                else:
+                    # Stop adding error messages for repeated errors
+                    logger.warning(f"Suppressing repeated error message for {error_type}")
+
                 continue
 
             # Reset failure counter on successful parse
             consecutive_failures = 0
+            format_error_history.clear()  # Clear error history on success
 
             # Handle different action types
             if parsed_action.action_type == "final_answer":
@@ -502,9 +593,63 @@ The Deepseek API seems to be returning empty or malformed responses. This is oft
                 arguments={"answer": answer}
             )
 
-        # Check for Action
+        # Check for function call syntax (WRONG FORMAT) and provide helpful error
+        function_call_match = re.search(r"(\w+)\s*\(\s*input\s*=\s*(\{.*?\})\s*\)", response, re.DOTALL)
+        if function_call_match:
+            tool_name = function_call_match.group(1)
+            input_json = function_call_match.group(2)
+
+            logger.warning(f"Detected function call syntax: {tool_name}(input={input_json})")
+
+            # Add specific error to conversation memory
+            error_msg = f"""WRONG FORMAT DETECTED: {tool_name}(input=...)
+
+CORRECT FORMAT:
+Action: {tool_name}
+Action Input: {input_json}
+
+Please use the exact format shown above. Do NOT use function call syntax like {tool_name}(input=...)."""
+
+            self.conversation_memory.add_observation(error_msg)
+            return None
+
+        # Check for other invalid function call patterns
+        invalid_patterns = [
+            r"(\w+)\s*\([^)]*\)",  # function_name(args)
+            r"(\w+)\s*\(\s*\{.*?\}\s*\)",  # function_name({args})
+        ]
+
+        for pattern in invalid_patterns:
+            if re.search(pattern, response):
+                logger.warning(f"Detected invalid function call pattern in: {response[:100]}...")
+                error_msg = """INVALID FORMAT: Function call syntax detected.
+
+REQUIRED FORMAT:
+Action: [tool_name]
+Action Input: {json_object}
+
+Do NOT use function call syntax like tool_name(args). Use the exact format above."""
+                self.conversation_memory.add_observation(error_msg)
+                return None
+
+        # Check for proper Action format
         action_match = re.search(r"Action:\s*(.*?)(?=\nAction Input:|$)", response, re.DOTALL)
         if not action_match:
+            # Check if there's any tool-like content that might indicate a format error
+            tool_names = ['file_read', 'file_write', 'git_status']
+            for tool in tool_names:
+                if tool in response.lower() and 'action:' not in response.lower():
+                    error_msg = f"""FORMAT ERROR: Tool name '{tool}' detected but not in proper format.
+
+REQUIRED FORMAT:
+Action: {tool}
+Action Input: {{json_object}}
+
+Make sure to use 'Action:' followed by the exact tool name."""
+                    self.conversation_memory.add_observation(error_msg)
+                    return None
+
+            # No action found and no tool names detected - this might be meant as a final answer
             return None
 
         action_name = action_match.group(1).strip()
@@ -513,6 +658,16 @@ The Deepseek API seems to be returning empty or malformed responses. This is oft
         # Tool names should be short identifiers, not long sentences
         if len(action_name.split()) > 2 or len(action_name) > 30:
             logger.warning(f"Invalid tool name detected: '{action_name}' - treating as invalid format")
+            available_tools = [tool.name for tool in self.tools.list_tools(enabled_only=True)]
+            error_msg = f"""INVALID ACTION NAME: '{action_name}'
+
+Action must be EXACTLY one of these tool names: {', '.join(available_tools)}
+Do NOT use descriptions or sentences as action names.
+
+Example:
+✅ Action: file_read
+❌ Action: I will read the file to check for errors"""
+            self.conversation_memory.add_observation(error_msg)
             return None
 
         # Check if the action name contains typical description words or phrases
@@ -525,11 +680,42 @@ The Deepseek API seems to be returning empty or malformed responses. This is oft
         action_words = action_name.lower().split()
         if len(action_words) > 2 or any(word in description_indicators for word in action_words):
             logger.warning(f"Action appears to be a description rather than tool name: '{action_name}'")
+            available_tools = [tool.name for tool in self.tools.list_tools(enabled_only=True)]
+            error_msg = f"""ACTION IS A DESCRIPTION: '{action_name}'
+
+Action must be EXACTLY one of these tool names: {', '.join(available_tools)}
+Do NOT use descriptions. Use the exact tool name only.
+
+Example:
+✅ Action: file_write
+❌ Action: write the code to a file"""
+            self.conversation_memory.add_observation(error_msg)
             return None
 
         # Additional check: if it contains punctuation typical of sentences
         if any(char in action_name for char in ['.', '!', '?', ',']):
             logger.warning(f"Action contains sentence punctuation: '{action_name}'")
+            error_msg = f"""INVALID ACTION FORMAT: '{action_name}'
+
+Action names cannot contain punctuation like . ! ? ,
+Use only the exact tool name without punctuation.
+
+Available tools: {', '.join([tool.name for tool in self.tools.list_tools(enabled_only=True)])}"""
+            self.conversation_memory.add_observation(error_msg)
+            return None
+
+        # Verify the action name is a valid tool
+        available_tools = [tool.name for tool in self.tools.list_tools(enabled_only=True)]
+        if action_name not in available_tools:
+            error_msg = f"""UNKNOWN TOOL: '{action_name}'
+
+Available tools are: {', '.join(available_tools)}
+Use EXACTLY one of these tool names (case-sensitive).
+
+Example:
+✅ Action: file_read
+❌ Action: read_file"""
+            self.conversation_memory.add_observation(error_msg)
             return None
 
         # Check for Action Input
@@ -542,8 +728,16 @@ The Deepseek API seems to be returning empty or malformed responses. This is oft
                 # Try to parse as JSON
                 action_input = json.loads(input_text)
             except json.JSONDecodeError:
-                # If not JSON, treat as plain text
-                action_input = {"input": input_text}
+                # If not JSON, provide helpful error
+                error_msg = f"""INVALID JSON in Action Input: {input_text[:100]}...
+
+Action Input must be valid JSON format:
+✅ Action Input: {{"file_path": "example.js", "content": "code here"}}
+❌ Action Input: file_path: example.js, content: code here
+
+Check your JSON syntax - make sure to use double quotes and proper formatting."""
+                self.conversation_memory.add_observation(error_msg)
+                return None
 
         return AgentAction(
             action_type="tool_use",

@@ -52,7 +52,7 @@ class DevMindREPL:
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         timeout: int = 60,
-        max_iterations: int = 100,
+        max_iterations: int = 8,
         hide_iterations: bool = False
     ):
         """Initialize the REPL.

@@ -125,9 +125,9 @@ def main(
         help="Timeout in seconds for API requests (default: 60)"
     ),
     max_iterations: int = typer.Option(
-        100,
+        8,
         "--max-iterations",
-        help="Maximum number of agent iterations for complex tasks (default: 100)"
+        help="Maximum number of agent iterations for complex tasks (default: 8)"
     ),
     hide_iterations: bool = typer.Option(
         False,
@@ -215,7 +215,7 @@ async def start_interactive_session(
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
     timeout: int = 60,
-    max_iterations: int = 100,
+    max_iterations: int = 8,
     hide_iterations: bool = False,
     debug: bool = False
 ):
