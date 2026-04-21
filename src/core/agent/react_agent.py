@@ -332,9 +332,26 @@ Guidelines:
                 self.conversation_memory.add_assistant_message(response)
                 return response
 
-            # Provide specific help for Deepseek API issues
+            # Provide specific help for different types of API issues
             error_str = str(e).lower()
-            if "deepseek" in error_str and "json" in error_str:
+            if "504 gateway timeout" in error_str or "cloudfront" in error_str or "infrastructure" in error_str:
+                error_response = """🚨 **API Infrastructure Issue Detected**
+
+The API service is currently experiencing server problems (504 Gateway Timeout). This is **not a problem with your request or DevMind** - it's a temporary infrastructure issue on the provider's side.
+
+🔄 **Immediate Solutions:**
+1. **Switch models**: `/model gpt-3.5-turbo` or `/model claude-3-sonnet-20240229`
+2. **Wait and retry**: Try again in 15-30 minutes when servers recover
+3. **Check service status**: Visit the provider's status page
+
+🚀 **Working Alternatives:**
+- **OpenAI**: `gpt-3.5-turbo`, `gpt-4`, `gpt-4-turbo-preview`
+- **Anthropic**: `claude-3-sonnet-20240229`, `claude-3-haiku-20240307`
+- **Local**: Use `/local` for Ollama or llama.cpp models
+
+This type of error typically resolves automatically within 30 minutes."""
+
+            elif "deepseek" in error_str and "json" in error_str:
                 error_response = """I'm experiencing issues with the Deepseek API. Here are some solutions to try:
 
 🔧 **Immediate Solutions:**
@@ -348,6 +365,20 @@ Guidelines:
 - Local: `/local` to see available local models (Ollama/llama.cpp)
 
 The Deepseek API seems to be returning empty or malformed responses. This is often temporary and may resolve itself, or could indicate API quota/authentication issues."""
+
+            elif "timeout" in error_str:
+                error_response = f"""⏱️ **Request Timeout**
+
+The API request timed out. This could be due to:
+• High API server load
+• Network connectivity issues
+• Large request processing time
+
+🔄 **Solutions:**
+1. **Retry**: Often works on second attempt
+2. **Switch models**: Try `/model gpt-3.5-turbo` for faster responses
+3. **Simplify request**: Break complex tasks into smaller parts
+4. **Check network**: Ensure stable internet connection"""
 
             else:
                 error_response = f"I encountered an error while processing your request: {str(e)}"

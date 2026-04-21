@@ -210,6 +210,30 @@ class LiteLLMProvider(BaseLLM):
         """Convert LiteLLM errors to our error types."""
         error_message = str(error)
 
+        # Handle server infrastructure errors (504 Gateway Timeout, CloudFront errors)
+        if any(indicator in error_message.lower() for indicator in ["504 gateway timeout", "cloudfront", "<!doctype html"]):
+            logger.warning(f"Server infrastructure error for {self.config.model}: {error_message[:200]}...")
+
+            if "deepseek" in self.config.model.lower():
+                friendly_error = """🚨 Deepseek API Infrastructure Issue
+
+The Deepseek API servers are currently experiencing problems:
+• 504 Gateway Timeout - Their servers are overloaded or down
+• This is a temporary infrastructure issue on Deepseek's side
+• Not related to your code or configuration
+
+🔄 Immediate Solutions:
+1. Switch models: `/model gpt-3.5-turbo` or `/model claude-3-sonnet-20240229`
+2. Try again in 15-30 minutes when their servers recover
+3. Check Deepseek status: https://platform.deepseek.com
+
+The issue should resolve automatically when Deepseek fixes their infrastructure."""
+
+            else:
+                friendly_error = f"Server infrastructure error for {self.config.model}. The API service is temporarily unavailable. Try switching to a different model or retry later."
+
+            return LLMError(friendly_error, self.provider_name, self.config.model)
+
         # Handle Deepseek-specific JSON parsing errors
         if "deepseekexception" in error_message.lower() and "unable to get json response" in error_message.lower():
             logger.warning(f"Deepseek JSON parsing error for model {self.config.model}: {error_message}")
@@ -226,6 +250,14 @@ class LiteLLMProvider(BaseLLM):
 
             return LLMError(
                 f"{error_details} Try switching to a different model or check your Deepseek API status.",
+                self.provider_name,
+                self.config.model
+            )
+
+        # Handle network and connection errors
+        if any(indicator in error_message.lower() for indicator in ["connection error", "network", "dns", "502 bad gateway", "503 service unavailable"]):
+            return LLMError(
+                f"Network/connection error with {self.config.model} API. Check your internet connection and try again, or switch to a different model.",
                 self.provider_name,
                 self.config.model
             )
