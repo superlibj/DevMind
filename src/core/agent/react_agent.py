@@ -316,12 +316,16 @@ Follow these rules EXACTLY or your response will be REJECTED:
 2. Write "Action: [tool_name]" (NO PARENTHESES!)
 3. Write "Action Input: [json]" (NO PARENTHESES!)
 
-✅ DEEPSEEK ESCAPE OPTION - USE FINAL ANSWER:
-If you cannot get Action/Action Input format right, use this:
-Thought: [analysis]
-Final Answer: [complete detailed response]
+✅ DEEPSEEK PREFERRED METHOD - USE FINAL ANSWER:
+DeepSeek works BEST with Final Answer. Use this pattern:
 
-This bypasses tools but lets you provide helpful analysis!
+Thought: Let me analyze the snake game issue...
+Final Answer: I found the bug in the snake game...
+
+This is EASIER than tools and gives complete answers!
+
+✅ ONLY use tools if you ABSOLUTELY need to read/write files.
+✅ For analysis, debugging, explanations: USE FINAL ANSWER!
 
 DEEPSEEK RULES:
 - NEVER write tool_name() with parentheses

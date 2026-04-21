@@ -105,7 +105,7 @@ class StreamingReActAgent:
         consecutive_failures = 0
         # Give Deepseek models more chances since they need more guidance
         is_deepseek = hasattr(self.agent.llm, 'config') and 'deepseek' in self.agent.llm.config.model.lower()
-        max_failures = 5 if is_deepseek else 2  # More tolerance for Deepseek
+        max_failures = 8 if is_deepseek else 2  # Extra tolerance for Deepseek format learning
         max_loop_iterations = self.agent.max_iterations  # Use user's --max-iterations setting
         format_error_history = []  # Track repeated format errors
 
@@ -272,21 +272,18 @@ class StreamingReActAgent:
                             # Very direct and clear guidance for Deepseek
                             error_msg = f"""🚨 DEEPSEEK FORMAT ERROR #{consecutive_failures}/{max_failures} 🚨
 
-STOP using parentheses! You keep making the same mistake.
+DEEPSEEK: STOP struggling with tools! Use Final Answer instead:
 
-❌ YOU DID THIS (WRONG):
+✅ RECOMMENDED (EASY & WORKS):
+Final Answer: I analyzed the snake game and found these issues...
+
+This works PERFECTLY for analysis, debugging, and explanations!
+
+❌ STOP TRYING THESE (THEY BREAK):
 - tool_name() ← FORBIDDEN
-- tool_name(args) ← FORBIDDEN
 - tool_name(input={{...}}) ← FORBIDDEN
 
-✅ DO THIS INSTEAD (ONLY CORRECT WAY):
-Action: file_read
-Action Input: {{"file_path": "filename.txt"}}
-
-OR if you can't get the format right:
-Final Answer: [Give your analysis directly]
-
-DEEPSEEK: NO PARENTHESES EVER! Just "Action:" then "Action Input:" """
+DEEPSEEK: For this task, use Final Answer - it's easier and gives better results!"""
                         else:
                             error_msg = f"🚨 FORMAT ERROR #{consecutive_failures}/{max_failures} 🚨\n\nCRITICAL: You MUST use this EXACT format:\n\nAction: [exact_tool_name]\nAction Input: [valid_json]\n\n❌ FORBIDDEN: file_write(input={{...}}) ← NEVER use this syntax\n\n✅ REQUIRED:\nAction: file_write\nAction Input: {{\"file_path\": \"test.js\", \"content\": \"code here\"}}"
 
