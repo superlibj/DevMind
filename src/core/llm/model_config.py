@@ -161,7 +161,7 @@ class ModelConfigManager:
             "deepseek-chat": ModelInfo(
                 name="deepseek-chat",
                 provider=ProviderType.DEEPSEEK,
-                max_tokens=4096,
+                max_tokens=8192,
                 context_window=32768,
                 capabilities=[
                     ModelCapability.CHAT,
@@ -177,7 +177,7 @@ class ModelConfigManager:
             "deepseek-coder": ModelInfo(
                 name="deepseek-coder",
                 provider=ProviderType.DEEPSEEK,
-                max_tokens=4096,
+                max_tokens=8192,
                 context_window=16384,
                 capabilities=[
                     ModelCapability.CODE_GENERATION,
@@ -193,7 +193,7 @@ class ModelConfigManager:
             "deepseek-coder-v2": ModelInfo(
                 name="deepseek-coder-v2",
                 provider=ProviderType.DEEPSEEK,
-                max_tokens=4096,
+                max_tokens=8192,
                 context_window=128000,
                 capabilities=[
                     ModelCapability.CODE_GENERATION,
@@ -539,7 +539,7 @@ class ModelConfigManager:
 
         config_data = {
             "model": model_name,
-            "max_tokens": min(model_info.max_tokens, 4096),  # Default limit
+            "max_tokens": model_info.max_tokens,  # Use model's actual max_tokens
             "temperature": 0.1,
             "timeout": 30,
             "stream": False,
