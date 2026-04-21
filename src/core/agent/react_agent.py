@@ -396,15 +396,30 @@ The API request timed out. This could be due to:
         max_loop_iterations = 8  # Hard limit to prevent runaway loops
         format_error_history = []  # Track repeated format errors
 
-        while self.iteration_count < min(self.max_iterations, max_loop_iterations):
+        while True:  # Use infinite loop with explicit breaks
             self.iteration_count += 1
             logger.debug(f"ReAct iteration {self.iteration_count}/{max_loop_iterations}")
 
-            # Early termination if we detect a runaway loop
+            # Check termination conditions FIRST
             if self.iteration_count >= max_loop_iterations:
                 logger.warning(f"Reached maximum loop iterations ({max_loop_iterations}), terminating")
-                user_message = self.working_memory.get_current_task().get("task", "")
+                current_task = self.working_memory.get_current_task()
+                # Handle both string and dict return types
+                if isinstance(current_task, dict):
+                    user_message = current_task.get("task", "your request")
+                else:
+                    user_message = str(current_task) if current_task else "your request"
                 return f"I've attempted to process your request but encountered persistent formatting issues. For the task '{user_message[:100]}...', I recommend trying with a different model or simplifying the request. You can use `/model gpt-3.5-turbo` or `/model claude-3-sonnet-20240229` for more reliable results."
+
+            if self.iteration_count >= self.max_iterations:
+                logger.warning(f"Reached maximum iterations ({self.max_iterations}), terminating")
+                current_task = self.working_memory.get_current_task()
+                # Handle both string and dict return types
+                if isinstance(current_task, dict):
+                    user_message = current_task.get("task", "your request")
+                else:
+                    user_message = str(current_task) if current_task else "your request"
+                return f"I've reached the maximum number of reasoning steps while processing '{user_message[:100]}...'. Please try simplifying your request or using a different model."
 
             # Get current conversation context
             messages = self._build_messages_for_llm()
@@ -437,7 +452,11 @@ The API request timed out. This could be due to:
                     recent_errors = format_error_history[-3:]
                     if len(set(recent_errors)) == 1:  # All same error type
                         logger.warning(f"Detected repeated format error pattern: {error_type}")
-                        user_message = self.working_memory.get_current_task().get("task", "")
+                        current_task = self.working_memory.get_current_task()
+                        if isinstance(current_task, dict):
+                            user_message = current_task.get("task", "your request")
+                        else:
+                            user_message = str(current_task) if current_task else "your request"
 
                         # Provide a helpful fallback response based on the original request
                         if "create" in user_message.lower() or "write" in user_message.lower():
@@ -448,7 +467,11 @@ The API request timed out. This could be due to:
                 if consecutive_failures >= max_failures:
                     # Too many consecutive failures, provide helpful fallback response
                     logger.warning("Too many parsing failures, providing direct answer")
-                    user_message = self.working_memory.get_current_task().get("task", "")
+                    current_task = self.working_memory.get_current_task()
+                    if isinstance(current_task, dict):
+                        user_message = current_task.get("task", "your request")
+                    else:
+                        user_message = str(current_task) if current_task else "your request"
 
                     # Try to extract useful response from the raw LLM output
                     if "Final Answer:" in response_text:
@@ -513,7 +536,11 @@ OR use Final Answer if no tools needed."""
                     self.conversation_memory.add_observation(error_msg)
 
                     # If it's a simple query that doesn't need tools, suggest direct response
-                    user_message = self.working_memory.get_current_task().get("task", "")
+                    current_task = self.working_memory.get_current_task()
+                    if isinstance(current_task, dict):
+                        user_message = current_task.get("task", "your request")
+                    else:
+                        user_message = str(current_task) if current_task else "your request"
                     if self._is_simple_conversational_query(user_message):
                         return "I'm DevMind, an AI assistant designed to help with software development tasks. How can I help you with your coding needs today?"
                     continue
@@ -527,9 +554,9 @@ OR use Final Answer if no tools needed."""
                     f"Unknown action type: {parsed_action.action_type}. Please use 'Final Answer' to complete the response."
                 )
 
-        # Max iterations reached
-        logger.warning("Maximum iterations reached in ReAct loop")
-        return "I've reached the maximum number of reasoning steps. Let me provide what I've found so far."
+        # This should never be reached due to explicit termination checks above
+        logger.error("ReAct loop exited unexpectedly without explicit termination")
+        return "An unexpected error occurred during processing. Please try again or use a different model."
 
     def _build_messages_for_llm(self) -> List[LLMMessage]:
         """Build messages for LLM request.
