@@ -175,23 +175,7 @@ class ModelConfigManager:
                 description="DeepSeek Chat - General purpose conversation and coding"
             ),
             "deepseek-coder": ModelInfo(
-                name="deepseek-coder",
-                provider=ProviderType.DEEPSEEK,
-                max_tokens=8192,
-                context_window=16384,
-                capabilities=[
-                    ModelCapability.CODE_GENERATION,
-                    ModelCapability.CODE_REVIEW,
-                    ModelCapability.COMPLETION
-                ],
-                cost_per_1k_input=0.0014,
-                cost_per_1k_output=0.0028,
-                supports_streaming=True,
-                supports_tools=False,
-                description="DeepSeek Coder - Specialized for code generation and review"
-            ),
-            "deepseek-coder-v2": ModelInfo(
-                name="deepseek-coder-v2",
+                name="deepseek-chat",  # Map to actual API model
                 provider=ProviderType.DEEPSEEK,
                 max_tokens=8192,
                 context_window=128000,
@@ -205,7 +189,24 @@ class ModelConfigManager:
                 cost_per_1k_output=0.0028,
                 supports_streaming=True,
                 supports_tools=True,
-                description="DeepSeek Coder V2 - Advanced coding with extended context and tool calling"
+                description="DeepSeek Coder - Uses deepseek-chat for code generation and review"
+            ),
+            "deepseek-reasoner": ModelInfo(
+                name="deepseek-reasoner",
+                provider=ProviderType.DEEPSEEK,
+                max_tokens=8192,
+                context_window=128000,
+                capabilities=[
+                    ModelCapability.CODE_GENERATION,
+                    ModelCapability.CODE_REVIEW,
+                    ModelCapability.TOOL_CALLING,
+                    ModelCapability.CHAT
+                ],
+                cost_per_1k_input=0.0014,
+                cost_per_1k_output=0.0028,
+                supports_streaming=True,
+                supports_tools=True,
+                description="DeepSeek Reasoner - Advanced reasoning mode (DeepSeek-V3.2)"
             ),
 
             # Ollama Models
