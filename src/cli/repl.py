@@ -27,9 +27,10 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.shortcuts import CompleteStyle
 from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.key_binding import KeyBindings
-from prompt_toolkit.shortcuts import radiolist_dialog
+from prompt_toolkit.shortcuts import radiolist_dialog, yes_no_dialog
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.styles import Style
+import re
 
 from ..core.agent.react_agent import ReActAgent
 from ..core.llm import create_llm
@@ -175,6 +176,153 @@ class DevMindREPL:
 
         console.print("[dim]Press [b]Tab[/b] after typing command name for auto-completion[/dim]")
 
+    def _detect_options_in_text(self, text: str) -> List[tuple]:
+        """Detect option lists in agent response text.
+
+        Args:
+            text: Response text to analyze
+
+        Returns:
+            List of (option_value, option_label) tuples, or empty list if no options found
+        """
+        options = []
+
+        # Pattern 1: Numbered options (1. Option A, 2. Option B, etc.)
+        numbered_pattern = r'^\s*(\d+)[.)]\s*(.+)$'
+        numbered_matches = re.findall(numbered_pattern, text, re.MULTILINE)
+
+        if numbered_matches and len(numbered_matches) >= 2:
+            for num, label in numbered_matches:
+                options.append((num, f"{num}. {label.strip()}"))
+            return options
+
+        # Pattern 2: Lettered options (A. Option A, B. Option B, etc.)
+        lettered_pattern = r'^\s*([A-Za-z])[.)]\s*(.+)$'
+        lettered_matches = re.findall(lettered_pattern, text, re.MULTILINE)
+
+        if lettered_matches and len(lettered_matches) >= 2:
+            for letter, label in lettered_matches:
+                options.append((letter.lower(), f"{letter.upper()}. {label.strip()}"))
+            return options
+
+        # Pattern 3: Bullet points with clear options
+        bullet_pattern = r'^\s*[•\-\*]\s*(.+)$'
+        bullet_matches = re.findall(bullet_pattern, text, re.MULTILINE)
+
+        if bullet_matches and len(bullet_matches) >= 2:
+            for i, label in enumerate(bullet_matches, 1):
+                clean_label = label.strip()
+                if len(clean_label) > 5 and len(clean_label) < 100:  # Reasonable option length
+                    options.append((str(i), f"{i}. {clean_label}"))
+            return options if len(options) >= 2 else []
+
+        # Pattern 4: Options with keywords (choose from, select, pick one of)
+        choice_keywords = [
+            r'choose\s+(?:from|one\s+of)\s*:?\s*(.+)',
+            r'select\s+(?:from|one\s+of)\s*:?\s*(.+)',
+            r'pick\s+(?:from|one\s+of)\s*:?\s*(.+)',
+            r'options?\s*:?\s*(.+)'
+        ]
+
+        for pattern in choice_keywords:
+            matches = re.findall(pattern, text, re.IGNORECASE | re.DOTALL)
+            if matches:
+                choice_text = matches[0]
+                # Look for comma-separated options
+                comma_options = [opt.strip() for opt in choice_text.split(',')]
+                if len(comma_options) >= 2:
+                    for i, opt in enumerate(comma_options, 1):
+                        if len(opt.strip()) > 2:
+                            options.append((str(i), f"{i}. {opt.strip()}"))
+                    if options:
+                        return options
+
+        return []
+
+    async def _show_interactive_options(self, options: List[tuple], title: str = "Select an option") -> Optional[str]:
+        """Show interactive option selector with spacebar selection.
+
+        Args:
+            options: List of (value, display_text) tuples
+            title: Title for the selection dialog
+
+        Returns:
+            Selected option value or None if cancelled
+        """
+        if not options:
+            return None
+
+        try:
+            # Create custom style for better visibility
+            option_style = Style.from_dict({
+                'dialog':             'bg:#4444aa',
+                'dialog.body':        'bg:#ffffff #000000',
+                'dialog.shadow':      'bg:#003366',
+                'dialog frame.label': 'bg:#ffffff #000000 bold',
+                'radiolist':          'bg:#ffffff',
+                'radiolist focused':  'bg:#ffaa00 #000000 bold',
+                'radiolist selected': 'bg:#00aa00 #ffffff bold',
+            })
+
+            console.print(f"\n[cyan]🎯 {title}[/cyan]")
+            console.print("[dim]Use ↑↓ arrows to navigate, [bold]Space[/bold] to select, [bold]Enter[/bold] to confirm[/dim]")
+
+            # Show the radiolist dialog
+            result = await asyncio.to_thread(
+                radiolist_dialog,
+                title=title,
+                text="Use arrow keys to navigate and spacebar to select:",
+                values=options,
+                style=option_style
+            )
+
+            if result:
+                console.print(f"[green]✅ Selected: {result}[/green]")
+                return result
+            else:
+                console.print(f"[yellow]❌ Selection cancelled[/yellow]")
+                return None
+
+        except Exception as e:
+            console.print(f"[red]Error in option selector: {e}[/red]")
+            # Fallback to text input
+            return None
+
+    async def _handle_agent_response_with_options(self, response: str) -> Optional[str]:
+        """Process agent response and handle interactive options if detected.
+
+        Args:
+            response: Agent response text
+
+        Returns:
+            User's selection if options were detected, None otherwise
+        """
+        # Check if the response contains options
+        options = self._detect_options_in_text(response)
+
+        if not options:
+            return None
+
+        # Ask user if they want interactive selection
+        console.print(f"\n[yellow]🔍 Detected {len(options)} options in response.[/yellow]")
+        console.print("[dim]Options found:[/dim]")
+        for value, label in options[:3]:  # Show first 3 as preview
+            console.print(f"  [cyan]{label}[/cyan]")
+        if len(options) > 3:
+            console.print(f"  [dim]... and {len(options) - 3} more[/dim]")
+
+        # Ask if they want interactive selection
+        use_interactive = await asyncio.to_thread(
+            yes_no_dialog,
+            title="Interactive Selection",
+            text="Would you like to use interactive selection (arrow keys + spacebar)?"
+        )
+
+        if use_interactive:
+            return await self._show_interactive_options(options, "Choose your preferred option")
+
+        return None
+
     def _handle_interrupt(self, signum, frame):
         """Handle Ctrl+C interrupt."""
         if self.in_multiline and self.input_buffer:
@@ -241,6 +389,7 @@ I'm your interactive development assistant. I can help with:
 • [green]🔥 Tab completion[/green] - Press [cyan]Tab[/cyan] for command/file completion
 • [green]📋 Command suggestions[/green] - Type [cyan]/[/cyan] to see available commands
 • [green]⬆️ History navigation[/green] - Use [cyan]↑↓[/cyan] arrows for command history
+• [green]🎯 Interactive selection[/green] - Use [cyan]Spacebar[/cyan] to select options when DevMind presents choices
 
 [bold]Special Commands:[/bold]
 • [cyan]/help[/cyan] - Show detailed help
@@ -256,6 +405,7 @@ I'm your interactive development assistant. I can help with:
 • Use [cyan]```[/cyan] for multi-line code input
 • Press [cyan]Tab[/cyan] to complete commands and filenames
 • Type [cyan]/[/cyan] and press [cyan]Tab[/cyan] to see all commands
+• When DevMind shows options, use [cyan]↑↓ arrows + Spacebar[/cyan] for quick selection
 • Press [cyan]Ctrl+C[/cyan] to cancel current operation
 • Type naturally - I'll understand context from our conversation
 
@@ -346,6 +496,17 @@ Ready to help! What would you like to work on?
         try:
             # Process with streaming display
             response = await self.agent_interface.process_message_with_display(message)
+
+            # Check if the agent response contains options for interactive selection
+            if response and isinstance(response, str):
+                selected_option = await self._handle_agent_response_with_options(response)
+
+                if selected_option:
+                    # User made a selection, send it back to the agent
+                    console.print(f"\n[cyan]📤 Sending selection to DevMind: {selected_option}[/cyan]")
+
+                    # Process the selection as a follow-up message
+                    await self.agent_interface.process_message_with_display(selected_option)
 
             # Auto-save session if named
             if self.session_name:
