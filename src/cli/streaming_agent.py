@@ -96,9 +96,31 @@ class StreamingReActAgent:
     async def _streaming_react_loop(self) -> AsyncGenerator[StreamingEvent, None]:
         """Execute streaming ReAct loop with real-time updates."""
 
-        while self.agent.iteration_count < self.agent.max_iterations:
+        consecutive_failures = 0
+        max_failures = 2  # Same as base agent
+        max_loop_iterations = 8  # Hard limit to prevent runaway loops
+        format_error_history = []  # Track repeated format errors
+
+        while True:  # Use infinite loop with explicit breaks
             self.agent.iteration_count += 1
             self.current_iteration = self.agent.iteration_count
+
+            # Check termination conditions FIRST (same logic as base agent)
+            if self.agent.iteration_count >= max_loop_iterations:
+                yield StreamingEvent(
+                    type="error",
+                    content=f"Reached maximum loop iterations ({max_loop_iterations}). Persistent formatting issues detected. Try switching to `/model gpt-3.5-turbo` or `/model claude-3-sonnet-20240229` for better compatibility.",
+                    metadata={"termination_reason": "max_loop_iterations", "iterations": self.agent.iteration_count}
+                )
+                return
+
+            if self.agent.iteration_count >= self.agent.max_iterations:
+                yield StreamingEvent(
+                    type="max_iterations",
+                    content="Maximum iterations reached. Providing current progress.",
+                    metadata={"max_iterations": self.agent.max_iterations}
+                )
+                return
 
             # Generate meaningful iteration description
             step_descriptions = [
@@ -188,16 +210,62 @@ class StreamingReActAgent:
                 parsed_action = self.agent._parse_response(response_text)
 
                 if parsed_action is None:
-                    # Invalid format
-                    error_msg = "Invalid response format. Please follow the Thought/Action/Action Input format."
-                    self.agent.conversation_memory.add_observation(error_msg)
+                    consecutive_failures += 1
 
-                    yield StreamingEvent(
-                        type="observation",
-                        content=error_msg,
-                        metadata={"type": "format_error"}
-                    )
+                    # Track what type of format error this is (same logic as base agent)
+                    error_type = "unknown"
+                    if "function call pattern" in response_text.lower():
+                        error_type = "function_call"
+                    elif "action:" not in response_text.lower():
+                        error_type = "missing_action"
+                    elif "invalid tool name" in str(self.agent.conversation_memory.get_messages()[-1:]):
+                        error_type = "invalid_tool"
+
+                    format_error_history.append(error_type)
+
+                    # Check for repeated identical errors (indicates model is stuck)
+                    if len(format_error_history) >= 3:
+                        recent_errors = format_error_history[-3:]
+                        if len(set(recent_errors)) == 1:  # All same error type
+                            yield StreamingEvent(
+                                type="error",
+                                content=f"Detected repeated format error pattern: {error_type}. The model appears to be stuck. Please try switching to `/model gpt-3.5-turbo` or `/model claude-3-sonnet-20240229` for better compatibility.",
+                                metadata={"termination_reason": "repeated_errors", "error_type": error_type}
+                            )
+                            return
+
+                    if consecutive_failures >= max_failures:
+                        # Too many consecutive failures, terminate
+                        yield StreamingEvent(
+                            type="error",
+                            content="Multiple format errors detected. The model is having persistent issues with the required format. Try switching to a different model for better results.",
+                            metadata={"termination_reason": "max_consecutive_failures", "failures": consecutive_failures}
+                        )
+                        return
+
+                    # Only add error message if we haven't seen this error type repeatedly
+                    if format_error_history.count(error_type) <= 2:
+                        error_msg = f"🚨 FORMAT ERROR #{consecutive_failures}/{max_failures} 🚨\n\nCRITICAL: You MUST use this EXACT format:\n\nAction: [exact_tool_name]\nAction Input: [valid_json]\n\n❌ FORBIDDEN: file_write(input={{...}}) ← NEVER use this syntax\n\n✅ REQUIRED:\nAction: file_write\nAction Input: {{\"file_path\": \"test.js\", \"content\": \"code here\"}}"
+                        self.agent.conversation_memory.add_observation(error_msg)
+
+                        yield StreamingEvent(
+                            type="observation",
+                            content=error_msg,
+                            metadata={"type": "format_error", "error_type": error_type}
+                        )
+                    else:
+                        # Stop adding error messages for repeated errors
+                        yield StreamingEvent(
+                            type="observation",
+                            content="Format error (suppressing repeated messages)",
+                            metadata={"type": "format_error_suppressed", "error_type": error_type}
+                        )
+
                     continue
+
+                # Reset failure counter on successful parse
+                consecutive_failures = 0
+                format_error_history.clear()  # Clear error history on success
 
                 # Handle different action types
                 if parsed_action.action_type == "final_answer":
@@ -239,12 +307,12 @@ class StreamingReActAgent:
                 )
                 break
 
-        if self.agent.iteration_count >= self.agent.max_iterations:
-            yield StreamingEvent(
-                type="max_iterations",
-                content="Maximum iterations reached. Providing current progress.",
-                metadata={"max_iterations": self.agent.max_iterations}
-            )
+        # This should never be reached due to explicit termination checks above
+        yield StreamingEvent(
+            type="error",
+            content="Streaming loop exited unexpectedly. Please try again with a different model.",
+            metadata={"termination_reason": "unexpected_exit"}
+        )
 
     async def _stream_tool_execution(self, action) -> AsyncGenerator[StreamingEvent, None]:
         """Stream tool execution with progress updates.
