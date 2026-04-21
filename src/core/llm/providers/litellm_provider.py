@@ -147,8 +147,13 @@ class LiteLLMProvider(BaseLLM):
     def _map_model_name(self, model: str) -> str:
         """Map user-friendly model names to LiteLLM-specific names."""
         # DeepSeek models need provider prefix for LiteLLM
-        if model.startswith("deepseek-") and "/" not in model:
-            return f"deepseek/{model}"
+        if "deepseek" in model.lower() and "/" not in model:
+            # Handle various Deepseek model name formats
+            if model.startswith("deepseek-"):
+                return f"deepseek/{model}"
+            else:
+                # Handle cases like "deepseek-chat" or just "deepseek"
+                return f"deepseek/{model}"
 
         # Check model provider type from config
         model_info = self._model_config_manager.get_model_info(model)
@@ -205,6 +210,26 @@ class LiteLLMProvider(BaseLLM):
         """Convert LiteLLM errors to our error types."""
         error_message = str(error)
 
+        # Handle Deepseek-specific JSON parsing errors
+        if "deepseekexception" in error_message.lower() and "unable to get json response" in error_message.lower():
+            logger.warning(f"Deepseek JSON parsing error for model {self.config.model}: {error_message}")
+
+            # Extract more details from the error
+            if "Original Response:" in error_message:
+                response_part = error_message.split("Original Response:")[-1].strip()
+                if not response_part or response_part == "":
+                    error_details = "Deepseek API returned empty response. This may be due to rate limiting, API quota exceeded, or temporary service issues."
+                else:
+                    error_details = f"Deepseek API returned non-JSON response: {response_part[:100]}..."
+            else:
+                error_details = "Deepseek API response could not be parsed as JSON."
+
+            return LLMError(
+                f"{error_details} Try switching to a different model or check your Deepseek API status.",
+                self.provider_name,
+                self.config.model
+            )
+
         if "timeout" in error_message.lower():
             return LLMTimeoutError(error_message, self.provider_name, self.config.model)
         elif "rate limit" in error_message.lower() or "429" in error_message:
@@ -224,27 +249,58 @@ class LiteLLMProvider(BaseLLM):
         """Generate a response from the LLM."""
         config = config_override or self.config
 
-        try:
-            litellm_messages = self._convert_messages(messages)
-            params = self._build_litellm_params(config)
+        # Special handling for Deepseek models
+        is_deepseek = "deepseek" in config.model.lower()
+        max_retries = 3 if is_deepseek else 1
 
-            logger.debug(f"Making LiteLLM request with model: {config.model}")
-            start_time = time.time()
+        for attempt in range(max_retries):
+            try:
+                litellm_messages = self._convert_messages(messages)
+                params = self._build_litellm_params(config)
 
-            response = await acompletion(
-                messages=litellm_messages,
-                **params
-            )
+                # Add Deepseek-specific parameters
+                if is_deepseek:
+                    # Ensure proper model mapping for Deepseek
+                    if not params["model"].startswith("deepseek/"):
+                        params["model"] = f"deepseek/{config.model}"
 
-            response_time = (time.time() - start_time) * 1000
-            response._response_ms = response_time
+                    # Add extra timeout for Deepseek
+                    params["timeout"] = max(params.get("timeout", 30), 60)
 
-            logger.debug(f"LiteLLM response received in {response_time:.2f}ms")
-            return self._convert_response(response)
+                logger.debug(f"Making LiteLLM request with model: {params['model']} (attempt {attempt + 1}/{max_retries})")
+                start_time = time.time()
 
-        except Exception as e:
-            logger.error(f"LiteLLM generation error: {e}")
-            raise self._handle_litellm_error(e)
+                response = await acompletion(
+                    messages=litellm_messages,
+                    **params
+                )
+
+                response_time = (time.time() - start_time) * 1000
+                response._response_ms = response_time
+
+                logger.debug(f"LiteLLM response received in {response_time:.2f}ms")
+                return self._convert_response(response)
+
+            except Exception as e:
+                error_message = str(e).lower()
+
+                # Check if this is a Deepseek JSON parsing error that we might retry
+                is_retryable_deepseek_error = (
+                    is_deepseek and
+                    "unable to get json response" in error_message and
+                    attempt < max_retries - 1
+                )
+
+                if is_retryable_deepseek_error:
+                    logger.warning(f"Deepseek JSON parsing error on attempt {attempt + 1}, retrying in {attempt + 1} seconds...")
+                    await asyncio.sleep(attempt + 1)  # Progressive backoff
+                    continue
+                else:
+                    logger.error(f"LiteLLM generation error: {e}")
+                    raise self._handle_litellm_error(e)
+
+        # This should never be reached due to the exception handling above
+        raise LLMError("Maximum retries exceeded", self.provider_name, config.model)
 
     async def generate_stream(
         self,
@@ -343,6 +399,40 @@ class LiteLLMProvider(BaseLLM):
                 "description": f"Model {self.config.model} via LiteLLM",
             }
 
+    def diagnose_deepseek_issues(self) -> Dict[str, Any]:
+        """Diagnose common Deepseek API issues and provide troubleshooting info."""
+        import os
+
+        diagnosis = {
+            "model": self.config.model,
+            "mapped_model": self._map_model_name(self.config.model),
+            "issues": [],
+            "suggestions": []
+        }
+
+        # Check API key
+        deepseek_key = os.environ.get("DEEPSEEK_API_KEY")
+        if not deepseek_key:
+            diagnosis["issues"].append("No DEEPSEEK_API_KEY environment variable found")
+            diagnosis["suggestions"].append("Set your Deepseek API key: export DEEPSEEK_API_KEY=your_key_here")
+
+        # Check model name format
+        if "deepseek" in self.config.model.lower() and "/" not in self.config.model:
+            if not self._map_model_name(self.config.model).startswith("deepseek/"):
+                diagnosis["issues"].append("Model name may not be properly formatted for LiteLLM")
+                diagnosis["suggestions"].append(f"Try using model name: deepseek/{self.config.model}")
+
+        # Check common issues
+        diagnosis["common_solutions"] = [
+            "Verify your Deepseek API key is valid and has quota remaining",
+            "Check if the Deepseek service is currently available",
+            "Try switching to a different model temporarily: gpt-3.5-turbo or claude-3-sonnet-20240229",
+            "Ensure your internet connection is stable",
+            "Check Deepseek API status at https://platform.deepseek.com"
+        ]
+
+        return diagnosis
+
 
 # Convenience function to create a LiteLLM provider
 def create_litellm_provider(
@@ -369,6 +459,8 @@ def create_litellm_provider(
             os.environ["ANTHROPIC_API_KEY"] = api_key
         elif "gemini" in model or "google" in model:
             os.environ["GOOGLE_API_KEY"] = api_key
+        elif "deepseek" in model.lower():
+            os.environ["DEEPSEEK_API_KEY"] = api_key
 
     config = LLMConfig(model=model, **config_kwargs)
     return LiteLLMProvider(config)

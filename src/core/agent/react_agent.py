@@ -303,7 +303,25 @@ Guidelines:
                 self.conversation_memory.add_assistant_message(response)
                 return response
 
-            error_response = f"I encountered an error while processing your request: {str(e)}"
+            # Provide specific help for Deepseek API issues
+            error_str = str(e).lower()
+            if "deepseek" in error_str and "json" in error_str:
+                error_response = """I'm experiencing issues with the Deepseek API. Here are some solutions to try:
+
+🔧 **Immediate Solutions:**
+1. Switch to a working model: `/model gpt-3.5-turbo` or `/model claude-3-sonnet-20240229`
+2. Check your API key: `export DEEPSEEK_API_KEY=your_key_here`
+3. Verify you have API quota remaining at https://platform.deepseek.com
+
+🔄 **Alternative Models:**
+- OpenAI: `gpt-3.5-turbo`, `gpt-4`
+- Anthropic: `claude-3-sonnet-20240229`, `claude-3-haiku-20240307`
+- Local: `/local` to see available local models (Ollama/llama.cpp)
+
+The Deepseek API seems to be returning empty or malformed responses. This is often temporary and may resolve itself, or could indicate API quota/authentication issues."""
+
+            else:
+                error_response = f"I encountered an error while processing your request: {str(e)}"
             self.conversation_memory.add_assistant_message(error_response)
             return error_response
 

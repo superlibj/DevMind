@@ -47,6 +47,7 @@ class CommandParser:
             "usage": self._usage_command,
             "cost": self._cost_command,
             "iterations": self._iterations_command,
+            "debug": self._debug_command,
             "exit": self._exit_command,
             "quit": self._exit_command,
         }
@@ -518,6 +519,63 @@ Available Tools: {task_summary.get('available_tools', 0)}
 
         except Exception as e:
             console.print(f"[red]Error checking llama.cpp: {e}[/red]")
+
+    async def _debug_command(self, args: List[str]) -> None:
+        """Debug command for troubleshooting model and API issues."""
+        console.print("[bold cyan]🔧 DevMind Debug Information[/bold cyan]\n")
+
+        try:
+            # Get current model info
+            current_model = getattr(self.repl.agent_interface.agent, 'llm', None)
+            if current_model and hasattr(current_model, 'config'):
+                model_name = current_model.config.model
+                console.print(f"[bold]Current Model:[/bold] {model_name}")
+
+                # Check if it's a Deepseek model and provide specific diagnostics
+                if "deepseek" in model_name.lower():
+                    console.print(f"[yellow]⚠ Deepseek model detected[/yellow]")
+
+                    # Get Deepseek diagnostics if available
+                    if hasattr(current_model, 'diagnose_deepseek_issues'):
+                        diagnosis = current_model.diagnose_deepseek_issues()
+
+                        if diagnosis["issues"]:
+                            console.print("\n[red]🐛 Issues Found:[/red]")
+                            for issue in diagnosis["issues"]:
+                                console.print(f"  • {issue}")
+
+                        if diagnosis["suggestions"]:
+                            console.print("\n[green]💡 Suggestions:[/green]")
+                            for suggestion in diagnosis["suggestions"]:
+                                console.print(f"  • {suggestion}")
+
+                        console.print("\n[blue]🔄 Alternative Models:[/blue]")
+                        alternatives = [
+                            "gpt-3.5-turbo (OpenAI - fast and reliable)",
+                            "claude-3-haiku-20240307 (Anthropic - fast)",
+                            "claude-3-sonnet-20240229 (Anthropic - balanced)"
+                        ]
+                        for alt in alternatives:
+                            console.print(f"  • {alt}")
+
+                        console.print(f"\n[dim]Use: /model <model_name> to switch[/dim]")
+
+                else:
+                    console.print(f"[green]✓ Non-Deepseek model in use[/green]")
+
+            else:
+                console.print("[red]Unable to detect current model[/red]")
+
+            # General troubleshooting
+            console.print(f"\n[bold]General Troubleshooting:[/bold]")
+            console.print("• Check your internet connection")
+            console.print("• Verify API keys are set correctly")
+            console.print("• Try `/local` to see local models (Ollama/llama.cpp)")
+            console.print("• Use `/model list` to see available models")
+            console.print("• Report issues at: https://github.com/anthropics/claude-code/issues")
+
+        except Exception as e:
+            console.print(f"[red]Debug error: {e}[/red]")
 
     async def _exit_command(self, args: List[str]) -> None:
         """Exit command."""
