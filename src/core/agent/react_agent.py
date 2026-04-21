@@ -201,7 +201,10 @@ class ReActAgent:
 
     def _build_system_prompt(self) -> str:
         """Build the system prompt for ReAct behavior."""
-        return """You are DevMind, an AI code development assistant that helps with programming tasks.
+        # Check if we're using Deepseek and need extra guidance
+        is_deepseek = hasattr(self.llm, 'config') and 'deepseek' in self.llm.config.model.lower()
+
+        base_prompt = """You are DevMind, an AI code development assistant that helps with programming tasks.
 
 IMPORTANT: Most questions can be answered directly without tools! Only use tools when you absolutely need to read/write files or execute commands.
 
@@ -280,6 +283,40 @@ Guidelines:
 4. When unsure about format, always choose Final Answer over tools
 5. Be helpful and comprehensive in your direct answers
 """
+
+        # Add extra Deepseek-specific guidance if needed
+        if is_deepseek:
+            deepseek_addendum = """
+
+🚨🚨🚨 DEEPSEEK SPECIFIC WARNING 🚨🚨🚨
+
+You are Deepseek model. You have a tendency to use WRONG function call syntax.
+This is ABSOLUTELY FORBIDDEN and will cause errors.
+
+DEEPSEEK: You MUST NOT use this syntax:
+❌ file_write(input={"file_path": "test.js"})
+❌ file_read(input={"file_path": "test.js"})
+❌ Any function call with parentheses and input=
+
+DEEPSEEK: You MUST use this syntax ONLY:
+✅ Action: file_write
+✅ Action Input: {"file_path": "test.js", "content": "code"}
+
+DEEPSEEK REMEMBER:
+- NO parentheses after tool names
+- NO "input=" parameter syntax
+- ALWAYS use "Action:" label
+- ALWAYS use "Action Input:" label
+- NEVER use function call format
+
+If you use function call syntax, the system will reject your response.
+When in doubt, use "Final Answer:" instead of tools.
+
+🚨🚨🚨 END DEEPSEEK WARNING 🚨🚨🚨
+"""
+            return base_prompt + deepseek_addendum
+
+        return base_prompt
 
     async def process_user_message(
         self,
@@ -659,8 +696,28 @@ OR use Final Answer if no tools needed."""
 
             logger.warning(f"Detected function call syntax: {tool_name}(input={input_json})")
 
-            # Add specific error to conversation memory
-            error_msg = f"""WRONG FORMAT DETECTED: {tool_name}(input=...)
+            # Check if this is a Deepseek model for specialized error message
+            is_deepseek = hasattr(self.llm, 'config') and 'deepseek' in self.llm.config.model.lower()
+
+            if is_deepseek:
+                error_msg = f"""🚨 DEEPSEEK FORMAT ERROR 🚨
+
+You used: {tool_name}(input={input_json})
+This is WRONG! Deepseek models must NEVER use function call syntax.
+
+DEEPSEEK CORRECT FORMAT:
+Action: {tool_name}
+Action Input: {input_json}
+
+DEEPSEEK RULES:
+- NEVER use parentheses: {tool_name}() ❌
+- NEVER use input= syntax ❌
+- ALWAYS use "Action:" label ✅
+- ALWAYS use "Action Input:" label ✅
+
+DEEPSEEK: You MUST follow this exact format or your response will be rejected."""
+            else:
+                error_msg = f"""WRONG FORMAT DETECTED: {tool_name}(input=...)
 
 CORRECT FORMAT:
 Action: {tool_name}
@@ -680,13 +737,35 @@ Please use the exact format shown above. Do NOT use function call syntax like {t
         for pattern in invalid_patterns:
             if re.search(pattern, response):
                 logger.warning(f"Detected invalid function call pattern in: {response[:100]}...")
-                error_msg = """INVALID FORMAT: Function call syntax detected.
+
+                # Check if this is a Deepseek model for specialized error message
+                is_deepseek = hasattr(self.llm, 'config') and 'deepseek' in self.llm.config.model.lower()
+
+                if is_deepseek:
+                    error_msg = """🚨 DEEPSEEK FUNCTION CALL ERROR 🚨
+
+You are using FORBIDDEN function call syntax.
+Deepseek models MUST NOT use function calls like tool_name().
+
+DEEPSEEK ONLY ALLOWED FORMAT:
+Action: [tool_name]
+Action Input: {json_object}
+
+DEEPSEEK FORBIDDEN:
+- Any parentheses after tool names ❌
+- Function call syntax ❌
+- Input parameters in parentheses ❌
+
+DEEPSEEK: Use the Action/Action Input format ONLY."""
+                else:
+                    error_msg = """INVALID FORMAT: Function call syntax detected.
 
 REQUIRED FORMAT:
 Action: [tool_name]
 Action Input: {json_object}
 
 Do NOT use function call syntax like tool_name(args). Use the exact format above."""
+
                 self.conversation_memory.add_observation(error_msg)
                 return None
 

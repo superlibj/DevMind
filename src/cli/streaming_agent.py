@@ -245,7 +245,27 @@ class StreamingReActAgent:
 
                     # Only add error message if we haven't seen this error type repeatedly
                     if format_error_history.count(error_type) <= 2:
-                        error_msg = f"🚨 FORMAT ERROR #{consecutive_failures}/{max_failures} 🚨\n\nCRITICAL: You MUST use this EXACT format:\n\nAction: [exact_tool_name]\nAction Input: [valid_json]\n\n❌ FORBIDDEN: file_write(input={{...}}) ← NEVER use this syntax\n\n✅ REQUIRED:\nAction: file_write\nAction Input: {{\"file_path\": \"test.js\", \"content\": \"code here\"}}"
+                        # Check if this is a Deepseek model for specialized error message
+                        is_deepseek = hasattr(self.agent.llm, 'config') and 'deepseek' in self.agent.llm.config.model.lower()
+
+                        if is_deepseek:
+                            error_msg = f"""🚨 DEEPSEEK FORMAT ERROR #{consecutive_failures}/{max_failures} 🚨
+
+DEEPSEEK: You are using FORBIDDEN function call syntax!
+
+❌ FORBIDDEN FOR DEEPSEEK:
+- file_write(input={{...}}) ← NEVER use this
+- Any function calls with parentheses ← NEVER use this
+- input= parameter syntax ← NEVER use this
+
+✅ DEEPSEEK MUST USE ONLY:
+Action: file_write
+Action Input: {{"file_path": "test.js", "content": "code here"}}
+
+DEEPSEEK: Follow the Action/Action Input format EXACTLY or be rejected!"""
+                        else:
+                            error_msg = f"🚨 FORMAT ERROR #{consecutive_failures}/{max_failures} 🚨\n\nCRITICAL: You MUST use this EXACT format:\n\nAction: [exact_tool_name]\nAction Input: [valid_json]\n\n❌ FORBIDDEN: file_write(input={{...}}) ← NEVER use this syntax\n\n✅ REQUIRED:\nAction: file_write\nAction Input: {{\"file_path\": \"test.js\", \"content\": \"code here\"}}"
+
                         self.agent.conversation_memory.add_observation(error_msg)
 
                         yield StreamingEvent(
