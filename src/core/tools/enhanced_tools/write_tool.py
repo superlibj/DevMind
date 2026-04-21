@@ -43,17 +43,26 @@ class WriteTool(ACPTool):
         )
         super().__init__(spec)
 
+    def _extract_payload_params(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract parameters from payload, handling both direct and nested input formats."""
+        # Handle nested input format: {"input": {"file_path": "..."}}
+        if "input" in payload and isinstance(payload["input"], dict):
+            return payload["input"]
+        # Handle direct format: {"file_path": "..."}
+        return payload
+
     async def _validate_message(self, message: ACPMessage) -> Optional[str]:
         """Validate the write request."""
         payload = message.payload
+        params = self._extract_payload_params(payload)
 
-        if not payload.get("file_path"):
+        if not params.get("file_path"):
             return "file_path is required"
 
-        if "content" not in payload:
+        if "content" not in params:
             return "content is required"
 
-        file_path = payload["file_path"]
+        file_path = params["file_path"]
 
         # Validate file path
         validation = input_sanitizer.sanitize(file_path, InputType.PATH, allow_absolute=True)
@@ -82,8 +91,10 @@ class WriteTool(ACPTool):
     ) -> ACPToolResult:
         """Execute the write operation."""
         payload = message.payload
-        file_path = payload["file_path"]
-        content = payload["content"]
+        params = self._extract_payload_params(payload)
+
+        file_path = params["file_path"]
+        content = params["content"]
 
         try:
             path = Path(file_path)

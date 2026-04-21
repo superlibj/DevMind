@@ -53,22 +53,31 @@ class EditTool(ACPTool):
         )
         super().__init__(spec)
 
+    def _extract_payload_params(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract parameters from payload, handling both direct and nested input formats."""
+        # Handle nested input format: {"input": {"file_path": "..."}}
+        if "input" in payload and isinstance(payload["input"], dict):
+            return payload["input"]
+        # Handle direct format: {"file_path": "..."}
+        return payload
+
     async def _validate_message(self, message: ACPMessage) -> Optional[str]:
         """Validate the edit request."""
         payload = message.payload
+        params = self._extract_payload_params(payload)
 
-        if not payload.get("file_path"):
+        if not params.get("file_path"):
             return "file_path is required"
 
-        if not payload.get("old_string"):
+        if not params.get("old_string"):
             return "old_string is required"
 
-        if "new_string" not in payload:
+        if "new_string" not in params:
             return "new_string is required"
 
-        file_path = payload["file_path"]
-        old_string = payload["old_string"]
-        new_string = payload["new_string"]
+        file_path = params["file_path"]
+        old_string = params["old_string"]
+        new_string = params["new_string"]
 
         # Validate file path
         validation = input_sanitizer.sanitize(file_path, InputType.PATH, allow_absolute=True)
@@ -103,10 +112,12 @@ class EditTool(ACPTool):
     ) -> ACPToolResult:
         """Execute the edit operation."""
         payload = message.payload
-        file_path = payload["file_path"]
-        old_string = payload["old_string"]
-        new_string = payload["new_string"]
-        replace_all = payload.get("replace_all", False)
+        params = self._extract_payload_params(payload)
+
+        file_path = params["file_path"]
+        old_string = params["old_string"]
+        new_string = params["new_string"]
+        replace_all = params.get("replace_all", False)
 
         try:
             path = Path(file_path)

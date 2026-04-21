@@ -84,10 +84,16 @@ class StreamingReActAgent:
                 yield event
 
         except Exception as e:
+            import traceback
+            tb_str = traceback.format_exc()
             yield StreamingEvent(
                 type="error",
                 content=f"Agent error: {str(e)}",
-                metadata={"exception": str(e)}
+                metadata={
+                    "exception": str(e),
+                    "traceback": tb_str,
+                    "exception_type": type(e).__name__
+                }
             )
 
         finally:

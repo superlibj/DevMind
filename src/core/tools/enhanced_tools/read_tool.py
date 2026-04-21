@@ -54,14 +54,23 @@ class ReadTool(ACPTool):
         )
         super().__init__(spec)
 
+    def _extract_payload_params(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract parameters from payload, handling both direct and nested input formats."""
+        # Handle nested input format: {"input": {"file_path": "..."}}
+        if "input" in payload and isinstance(payload["input"], dict):
+            return payload["input"]
+        # Handle direct format: {"file_path": "..."}
+        return payload
+
     async def _validate_message(self, message: ACPMessage) -> Optional[str]:
         """Validate the read request."""
         payload = message.payload
+        params = self._extract_payload_params(payload)
 
-        if not payload.get("file_path"):
+        if not params.get("file_path"):
             return "file_path is required"
 
-        file_path = payload["file_path"]
+        file_path = params["file_path"]
 
         # Validate file path
         validation = input_sanitizer.sanitize(file_path, InputType.PATH, allow_absolute=True)
@@ -77,11 +86,11 @@ class ReadTool(ACPTool):
             return f"Path is a directory, not a file: {file_path}"
 
         # Validate limit and offset if provided
-        limit = payload.get("limit")
+        limit = params.get("limit")
         if limit is not None and (not isinstance(limit, (int, float)) or limit < 1):
             return "limit must be a positive number"
 
-        offset = payload.get("offset")
+        offset = params.get("offset")
         if offset is not None and (not isinstance(offset, (int, float)) or offset < 1):
             return "offset must be a positive number starting from 1"
 
@@ -94,10 +103,12 @@ class ReadTool(ACPTool):
     ) -> ACPToolResult:
         """Execute the read operation."""
         payload = message.payload
-        file_path = payload["file_path"]
-        limit = payload.get("limit")
-        offset = payload.get("offset")
-        pages = payload.get("pages")
+        params = self._extract_payload_params(payload)
+
+        file_path = params["file_path"]
+        limit = params.get("limit")
+        offset = params.get("offset")
+        pages = params.get("pages")
 
         try:
             # Convert to Path object for easier handling
@@ -273,7 +284,8 @@ Path: {path}
         context: Optional[Dict[str, Any]] = None
     ) -> None:
         """Pre-execution hook."""
-        file_path = message.payload.get("file_path", "")
+        params = self._extract_payload_params(message.payload)
+        file_path = params.get("file_path", "")
         self.logger.debug(f"Reading file: {file_path}")
 
     async def _post_execute(

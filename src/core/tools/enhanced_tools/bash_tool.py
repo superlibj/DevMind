@@ -79,14 +79,23 @@ class BashTool(ACPTool):
             'make', 'cmake', 'gcc', 'javac', 'rustc'
         }
 
+    def _extract_payload_params(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract parameters from payload, handling both direct and nested input formats."""
+        # Handle nested input format: {"input": {"command": "..."}}
+        if "input" in payload and isinstance(payload["input"], dict):
+            return payload["input"]
+        # Handle direct format: {"command": "..."}
+        return payload
+
     async def _validate_message(self, message: ACPMessage) -> Optional[str]:
         """Validate the bash command request."""
         payload = message.payload
+        params = self._extract_payload_params(payload)
 
-        if not payload.get("command"):
+        if not params.get("command"):
             return "command is required"
 
-        command = payload["command"].strip()
+        command = params["command"].strip()
         if not command:
             return "command cannot be empty"
 
@@ -125,10 +134,12 @@ class BashTool(ACPTool):
     ) -> ACPToolResult:
         """Execute the bash command."""
         payload = message.payload
-        command = payload["command"]
-        timeout_ms = payload.get("timeout", 120000)  # Default 2 minutes
-        run_in_background = payload.get("run_in_background", False)
-        description = payload.get("description", "")
+        params = self._extract_payload_params(payload)
+
+        command = params["command"]
+        timeout_ms = params.get("timeout", 120000)  # Default 2 minutes
+        run_in_background = params.get("run_in_background", False)
+        description = params.get("description", "")
 
         timeout_seconds = timeout_ms / 1000 if timeout_ms else 120
 

@@ -298,13 +298,13 @@ You are Deepseek model. You have a tendency to use WRONG function call syntax.
 This is ABSOLUTELY FORBIDDEN and will cause errors.
 
 DEEPSEEK: You MUST NOT use this syntax:
-❌ file_write(input={"file_path": "test.js"})
-❌ file_read(input={"file_path": "test.js"})
+❌ file_write(input={{"file_path": "test.js"}})
+❌ file_read(input={{"file_path": "test.js"}})
 ❌ Any function call with parentheses and input=
 
 DEEPSEEK: You MUST use this syntax ONLY:
 ✅ Action: file_write
-✅ Action Input: {"file_path": "test.js", "content": "code"}
+✅ Action Input: {{"file_path": "test.js", "content": "code"}}
 
 DEEPSEEK REMEMBER:
 - NO parentheses after tool names
