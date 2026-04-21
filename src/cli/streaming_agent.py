@@ -106,7 +106,7 @@ class StreamingReActAgent:
         # Give Deepseek models more chances since they need more guidance
         is_deepseek = hasattr(self.agent.llm, 'config') and 'deepseek' in self.agent.llm.config.model.lower()
         max_failures = 5 if is_deepseek else 2  # More tolerance for Deepseek
-        max_loop_iterations = 8  # Hard limit to prevent runaway loops
+        max_loop_iterations = self.agent.max_iterations  # Use user's --max-iterations setting
         format_error_history = []  # Track repeated format errors
 
         while True:  # Use infinite loop with explicit breaks
@@ -116,17 +116,9 @@ class StreamingReActAgent:
             # Check termination conditions FIRST (same logic as base agent)
             if self.agent.iteration_count >= max_loop_iterations:
                 yield StreamingEvent(
-                    type="error",
-                    content=f"Reached maximum loop iterations ({max_loop_iterations}). Persistent formatting issues detected. Try switching to `/model gpt-3.5-turbo` or `/model claude-3-sonnet-20240229` for better compatibility.",
-                    metadata={"termination_reason": "max_loop_iterations", "iterations": self.agent.iteration_count}
-                )
-                return
-
-            if self.agent.iteration_count >= self.agent.max_iterations:
-                yield StreamingEvent(
                     type="max_iterations",
-                    content="Maximum iterations reached. Providing current progress.",
-                    metadata={"max_iterations": self.agent.max_iterations}
+                    content=f"Reached maximum iterations ({max_loop_iterations}). Providing current progress.",
+                    metadata={"termination_reason": "max_iterations", "iterations": self.agent.iteration_count}
                 )
                 return
 

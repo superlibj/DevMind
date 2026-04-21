@@ -434,7 +434,7 @@ The API request timed out. This could be due to:
         """
         consecutive_failures = 0
         max_failures = 2  # Maximum consecutive failures before fallback
-        max_loop_iterations = 8  # Hard limit to prevent runaway loops
+        max_loop_iterations = self.max_iterations  # Use configured max_iterations
         format_error_history = []  # Track repeated format errors
 
         while True:  # Use infinite loop with explicit breaks
