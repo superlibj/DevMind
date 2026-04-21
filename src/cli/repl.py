@@ -269,12 +269,15 @@ class DevMindREPL:
 
             # Show the radiolist dialog
             # Run in the main thread since prompt_toolkit requires it
-            result = radiolist_dialog(
+            app = radiolist_dialog(
                 title=title,
                 text="Use arrow keys to navigate and spacebar to select:",
                 values=options,
                 style=option_style
             )
+
+            # Execute the application to get the actual result
+            result = app.run()
 
             if result:
                 console.print(f"[green]✅ Selected: {result}[/green]")
@@ -312,10 +315,11 @@ class DevMindREPL:
             console.print(f"  [dim]... and {len(options) - 3} more[/dim]")
 
         # Ask if they want interactive selection
-        use_interactive = yes_no_dialog(
+        dialog_app = yes_no_dialog(
             title="Interactive Selection",
             text="Would you like to use interactive selection (arrow keys + spacebar)?"
         )
+        use_interactive = dialog_app.run()
 
         if use_interactive:
             return self._show_interactive_options(options, "Choose your preferred option")
