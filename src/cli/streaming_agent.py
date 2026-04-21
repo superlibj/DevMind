@@ -328,7 +328,7 @@ DEEPSEEK: NO PARENTHESES EVER! Just "Action:" then "Action Input:" """
 
                     # Add final response to memory
                     self.agent.conversation_memory.add_assistant_message(final_answer)
-                    break
+                    return  # Successfully completed with final answer
 
                 elif parsed_action.action_type == "tool_use":
                     # Execute tool with streaming
@@ -352,7 +352,7 @@ DEEPSEEK: NO PARENTHESES EVER! Just "Action:" then "Action Input:" """
                     content=f"LLM generation error: {str(e)}",
                     metadata={"exception": str(e)}
                 )
-                break
+                return  # Exit cleanly after LLM error
 
         # This should never be reached due to explicit termination checks above
         yield StreamingEvent(
