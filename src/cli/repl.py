@@ -239,7 +239,7 @@ class DevMindREPL:
 
         return []
 
-    def _show_interactive_options(self, options: List[tuple], title: str = "Select an option") -> Optional[str]:
+    async def _show_interactive_options(self, options: List[tuple], title: str = "Select an option") -> Optional[str]:
         """Show interactive option selector with spacebar selection.
 
         Args:
@@ -276,8 +276,8 @@ class DevMindREPL:
                 style=option_style
             )
 
-            # Execute the application to get the actual result
-            result = app.run()
+            # Execute the application async to get the actual result
+            result = await app.run_async()
 
             if result:
                 console.print(f"[green]✅ Selected: {result}[/green]")
@@ -291,7 +291,7 @@ class DevMindREPL:
             # Fallback to text input
             return None
 
-    def _handle_agent_response_with_options(self, response: str) -> Optional[str]:
+    async def _handle_agent_response_with_options(self, response: str) -> Optional[str]:
         """Process agent response and handle interactive options if detected.
 
         Args:
@@ -319,10 +319,10 @@ class DevMindREPL:
             title="Interactive Selection",
             text="Would you like to use interactive selection (arrow keys + spacebar)?"
         )
-        use_interactive = dialog_app.run()
+        use_interactive = await dialog_app.run_async()
 
         if use_interactive:
-            return self._show_interactive_options(options, "Choose your preferred option")
+            return await self._show_interactive_options(options, "Choose your preferred option")
 
         return None
 
@@ -502,7 +502,7 @@ Ready to help! What would you like to work on?
 
             # Check if the agent response contains options for interactive selection
             if response and isinstance(response, str):
-                selected_option = self._handle_agent_response_with_options(response)
+                selected_option = await self._handle_agent_response_with_options(response)
 
                 if selected_option:
                     # User made a selection, send it back to the agent
