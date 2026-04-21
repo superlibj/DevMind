@@ -239,7 +239,7 @@ class DevMindREPL:
 
         return []
 
-    async def _show_interactive_options(self, options: List[tuple], title: str = "Select an option") -> Optional[str]:
+    def _show_interactive_options(self, options: List[tuple], title: str = "Select an option") -> Optional[str]:
         """Show interactive option selector with spacebar selection.
 
         Args:
@@ -268,8 +268,8 @@ class DevMindREPL:
             console.print("[dim]Use ↑↓ arrows to navigate, [bold]Space[/bold] to select, [bold]Enter[/bold] to confirm[/dim]")
 
             # Show the radiolist dialog
-            result = await asyncio.to_thread(
-                radiolist_dialog,
+            # Run in the main thread since prompt_toolkit requires it
+            result = radiolist_dialog(
                 title=title,
                 text="Use arrow keys to navigate and spacebar to select:",
                 values=options,
@@ -288,7 +288,7 @@ class DevMindREPL:
             # Fallback to text input
             return None
 
-    async def _handle_agent_response_with_options(self, response: str) -> Optional[str]:
+    def _handle_agent_response_with_options(self, response: str) -> Optional[str]:
         """Process agent response and handle interactive options if detected.
 
         Args:
@@ -312,14 +312,13 @@ class DevMindREPL:
             console.print(f"  [dim]... and {len(options) - 3} more[/dim]")
 
         # Ask if they want interactive selection
-        use_interactive = await asyncio.to_thread(
-            yes_no_dialog,
+        use_interactive = yes_no_dialog(
             title="Interactive Selection",
             text="Would you like to use interactive selection (arrow keys + spacebar)?"
         )
 
         if use_interactive:
-            return await self._show_interactive_options(options, "Choose your preferred option")
+            return self._show_interactive_options(options, "Choose your preferred option")
 
         return None
 
@@ -499,7 +498,7 @@ Ready to help! What would you like to work on?
 
             # Check if the agent response contains options for interactive selection
             if response and isinstance(response, str):
-                selected_option = await self._handle_agent_response_with_options(response)
+                selected_option = self._handle_agent_response_with_options(response)
 
                 if selected_option:
                     # User made a selection, send it back to the agent
