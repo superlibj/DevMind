@@ -334,6 +334,7 @@ DEEPSEEK: NO PARENTHESES EVER! Just "Action:" then "Action Input:" """
                     # Execute tool with streaming
                     async for tool_event in self._stream_tool_execution(parsed_action):
                         yield tool_event
+                    continue  # Continue to next iteration after tool execution
 
                 else:
                     # Unknown action type
@@ -345,6 +346,7 @@ DEEPSEEK: NO PARENTHESES EVER! Just "Action:" then "Action Input:" """
                         content=error_msg,
                         metadata={"type": "unknown_action"}
                     )
+                    continue  # Continue to next iteration after unknown action
 
             except Exception as e:
                 yield StreamingEvent(
