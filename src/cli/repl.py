@@ -27,7 +27,7 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.shortcuts import CompleteStyle
 from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.key_binding import KeyBindings
-from prompt_toolkit.shortcuts import radiolist_dialog, yes_no_dialog
+from prompt_toolkit.shortcuts import radiolist_dialog, checkboxlist_dialog, yes_no_dialog
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.styles import Style
 import re
@@ -239,15 +239,104 @@ class DevMindREPL:
 
         return []
 
-    async def _show_interactive_options(self, options: List[tuple], title: str = "Select an option") -> Optional[str]:
-        """Show interactive option selector with spacebar selection.
+    def _should_use_multiselect(self, text: str, options: List[tuple]) -> bool:
+        """Detect if multiselect mode should be used based on context.
+
+        Args:
+            text: Response text to analyze
+            options: Detected options list
+
+        Returns:
+            True if multiselect should be used, False for single select
+        """
+        text_lower = text.lower()
+
+        # Check recent conversation history for multiselect indicators
+        try:
+            history = self.streaming_agent.get_conversation_history()
+            # Check last few user messages for multiselect requests
+            recent_user_messages = [
+                msg.get("content", "").lower()
+                for msg in history[-5:]
+                if msg.get("role") == "user"
+            ]
+
+            # If user explicitly requested multiselect in recent messages
+            for msg_content in recent_user_messages:
+                if any(keyword in msg_content for keyword in ['multiselect', 'multi-select', 'multi select', 'multiple', 'several']):
+                    return True
+        except Exception:
+            # If we can't access history, fall back to response analysis
+            pass
+
+        # Explicit multiselect indicators
+        multiselect_keywords = [
+            'select multiple', 'choose multiple', 'pick multiple', 'select all that apply',
+            'choose all that apply', 'pick all that apply', 'select several', 'choose several',
+            'which ones', 'what features', 'what requirements', 'which features',
+            'which requirements', 'multiple', 'several', 'all that apply', 'multiselect',
+            'multi-select', 'multi select'
+        ]
+
+        for keyword in multiselect_keywords:
+            if keyword in text_lower:
+                return True
+
+        # Context-based detection for feature/requirement lists
+        feature_context = [
+            'features', 'requirements', 'capabilities', 'functionalities',
+            'options', 'components', 'modules', 'tools', 'plugins'
+        ]
+
+        for context in feature_context:
+            if context in text_lower and len(options) > 3:
+                # If it's a feature list and has many options, likely multiselect
+                return True
+
+        # Question patterns that suggest multiselect
+        multiselect_patterns = [
+            r'what.*(?:features|requirements|options).*(?:do you|would you).*(?:need|want|like)',
+            r'which.*(?:features|requirements|options).*(?:are|would be).*important',
+            r'select.*(?:features|requirements|options).*(?:that|you)',
+            r'choose.*(?:features|requirements|options).*(?:that|you)'
+        ]
+
+        for pattern in multiselect_patterns:
+            if re.search(pattern, text_lower):
+                return True
+
+        # Special case: Large feature lists with categories suggest multiselect
+        if len(options) >= 5 and any(
+            indicator in text_lower
+            for indicator in ['features', 'functions', 'capabilities', 'components', 'options']
+        ):
+            return True
+
+        # Special case: When response contains structured feature lists
+        if ('•' in text or '[ ]' in text) and len(options) >= 4:
+            # Response contains checkboxes or bullet points with many options
+            return True
+
+        # Default to single select for simple choice questions
+        return False
+
+    async def _show_interactive_options(
+        self,
+        options: List[tuple],
+        title: str = "Select an option",
+        multiselect: bool = False
+    ) -> Optional[str]:
+        """Show interactive option selector with single or multi-selection.
 
         Args:
             options: List of (value, display_text) tuples
             title: Title for the selection dialog
+            multiselect: Whether to allow multiple selections
 
         Returns:
-            Selected option value or None if cancelled
+            Selected option value(s) or None if cancelled.
+            For single select: returns string value (e.g., "1")
+            For multiselect: returns comma-separated values (e.g., "1,3,5")
         """
         if not options:
             return None
@@ -262,26 +351,54 @@ class DevMindREPL:
                 'radiolist':          'bg:#ffffff',
                 'radiolist focused':  'bg:#ffaa00 #000000 bold',
                 'radiolist selected': 'bg:#00aa00 #ffffff bold',
+                'checkbox-list':      'bg:#ffffff',
+                'checkbox-list focused': 'bg:#ffaa00 #000000 bold',
+                'checkbox-list selected': 'bg:#00aa00 #ffffff bold',
             })
 
-            console.print(f"\n[cyan]🎯 {title}[/cyan]")
-            console.print("[dim]Use ↑↓ arrows to navigate, [bold]Space[/bold] to select, [bold]Enter[/bold] to confirm[/dim]")
+            # Display appropriate instructions based on selection mode
+            if multiselect:
+                console.print(f"\n[cyan]🎯 {title} (Multi-Select)[/cyan]")
+                console.print("[dim]Use ↑↓ arrows to navigate, [bold]Space[/bold] to toggle selection, [bold]Enter[/bold] to confirm[/dim]")
+                console.print("[dim][yellow]Tip: You can select multiple options[/yellow][/dim]")
 
-            # Show the radiolist dialog
-            # Run in the main thread since prompt_toolkit requires it
-            app = radiolist_dialog(
-                title=title,
-                text="Use arrow keys to navigate and spacebar to select:",
-                values=options,
-                style=option_style
-            )
+                # Show the checkboxlist dialog for multiselect
+                app = checkboxlist_dialog(
+                    title=title,
+                    text="Use arrow keys to navigate and spacebar to toggle multiple selections:",
+                    values=options,
+                    style=option_style
+                )
+            else:
+                console.print(f"\n[cyan]🎯 {title} (Single-Select)[/cyan]")
+                console.print("[dim]Use ↑↓ arrows to navigate, [bold]Space[/bold] to select, [bold]Enter[/bold] to confirm[/dim]")
+
+                # Show the radiolist dialog for single select
+                app = radiolist_dialog(
+                    title=title,
+                    text="Use arrow keys to navigate and spacebar to select:",
+                    values=options,
+                    style=option_style
+                )
 
             # Execute the application async to get the actual result
             result = await app.run_async()
 
             if result:
-                console.print(f"[green]✅ Selected: {result}[/green]")
-                return result
+                if multiselect:
+                    # For multiselect, result is a list of selected values
+                    if isinstance(result, list) and result:
+                        selected_values = [str(item) for item in result]
+                        selected_text = ", ".join(selected_values)
+                        console.print(f"[green]✅ Selected: {selected_text}[/green]")
+                        return ",".join(selected_values)  # Return comma-separated values
+                    else:
+                        console.print(f"[yellow]❌ No items selected[/yellow]")
+                        return None
+                else:
+                    # For single select, result is a single value
+                    console.print(f"[green]✅ Selected: {result}[/green]")
+                    return str(result)
             else:
                 console.print(f"[yellow]❌ Selection cancelled[/yellow]")
                 return None
@@ -306,8 +423,13 @@ class DevMindREPL:
         if not options:
             return None
 
+        # Detect if multiselect should be used
+        is_multiselect = self._should_use_multiselect(response, options)
+        selection_type = "Multi-Select" if is_multiselect else "Single-Select"
+
         # Ask user if they want interactive selection
         console.print(f"\n[yellow]🔍 Detected {len(options)} options in response.[/yellow]")
+        console.print(f"[dim]Selection mode: [bold]{selection_type}[/bold][/dim]")
         console.print("[dim]Options found:[/dim]")
         for value, label in options[:3]:  # Show first 3 as preview
             console.print(f"  [cyan]{label}[/cyan]")
@@ -315,14 +437,25 @@ class DevMindREPL:
             console.print(f"  [dim]... and {len(options) - 3} more[/dim]")
 
         # Ask if they want interactive selection
+        selection_prompt = (
+            "Would you like to use interactive selection?\n"
+            f"Mode: {selection_type}\n"
+            "Controls: ↑↓ arrows to navigate, Space to select/toggle, Enter to confirm"
+        )
+
         dialog_app = yes_no_dialog(
             title="Interactive Selection",
-            text="Would you like to use interactive selection (arrow keys + spacebar)?"
+            text=selection_prompt
         )
         use_interactive = await dialog_app.run_async()
 
         if use_interactive:
-            return await self._show_interactive_options(options, "Choose your preferred option")
+            if is_multiselect:
+                title = "Choose Multiple Options"
+                return await self._show_interactive_options(options, title, multiselect=True)
+            else:
+                title = "Choose One Option"
+                return await self._show_interactive_options(options, title, multiselect=False)
 
         return None
 
@@ -392,7 +525,7 @@ I'm your interactive development assistant. I can help with:
 • [green]🔥 Tab completion[/green] - Press [cyan]Tab[/cyan] for command/file completion
 • [green]📋 Command suggestions[/green] - Type [cyan]/[/cyan] to see available commands
 • [green]⬆️ History navigation[/green] - Use [cyan]↑↓[/cyan] arrows for command history
-• [green]🎯 Interactive selection[/green] - Use [cyan]Spacebar[/cyan] to select options when DevMind presents choices
+• [green]🎯 Interactive selection[/green] - Single/multi-select with [cyan]Spacebar[/cyan] when DevMind presents choices
 
 [bold]Special Commands:[/bold]
 • [cyan]/help[/cyan] - Show detailed help
@@ -408,7 +541,7 @@ I'm your interactive development assistant. I can help with:
 • Use [cyan]```[/cyan] for multi-line code input
 • Press [cyan]Tab[/cyan] to complete commands and filenames
 • Type [cyan]/[/cyan] and press [cyan]Tab[/cyan] to see all commands
-• When DevMind shows options, use [cyan]↑↓ arrows + Spacebar[/cyan] for quick selection
+• When DevMind shows options, use [cyan]↑↓ arrows + Spacebar[/cyan] for single/multi-selection
 • Press [cyan]Ctrl+C[/cyan] to cancel current operation
 • Type naturally - I'll understand context from our conversation
 
