@@ -199,13 +199,16 @@ class ACPTool:
 
         except Exception as e:
             execution_time = time.time() - start_time
+            import traceback
+            tb_str = traceback.format_exc()
             self.logger.error(f"Tool {self.spec.name} failed: {e}")
+            self.logger.error(f"Full traceback: {tb_str}")
 
             return ACPToolResult(
                 status=ACPStatus.FAILED,
-                error=str(e),
+                error=f"{str(e)} | Exception: {type(e).__name__} | Traceback: {tb_str[:200]}",
                 execution_time=execution_time,
-                metadata={"exception_type": type(e).__name__}
+                metadata={"exception_type": type(e).__name__, "full_traceback": tb_str}
             )
 
     async def _validate_message(self, message: ACPMessage) -> Optional[str]:

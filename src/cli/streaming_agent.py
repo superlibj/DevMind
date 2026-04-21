@@ -88,7 +88,7 @@ class StreamingReActAgent:
             tb_str = traceback.format_exc()
             yield StreamingEvent(
                 type="error",
-                content=f"Agent error: {str(e)}",
+                content=f"Agent error: {type(e).__name__}: {str(e)}\\nFull error: {tb_str[:300]}",
                 metadata={
                     "exception": str(e),
                     "traceback": tb_str,
@@ -144,7 +144,16 @@ class StreamingReActAgent:
             )
 
             # Get current conversation context
-            messages = self.agent._build_messages_for_llm()
+            try:
+                messages = self.agent._build_messages_for_llm()
+            except KeyError as ke:
+                # Handle the '"location"' KeyError issue
+                if '"location"' in str(ke):
+                    # Clear conversation memory to reset state
+                    self.agent.conversation_memory.clear()
+                    messages = self.agent._build_messages_for_llm()
+                else:
+                    raise ke
 
             # Generate response with streaming
             thinking_descriptions = [
@@ -329,9 +338,21 @@ DEEPSEEK: For this task, use Final Answer - it's easier and gives better results
 
                 elif parsed_action.action_type == "tool_use":
                     # Execute tool with streaming
+                    should_terminate = False
                     async for tool_event in self._stream_tool_execution(parsed_action):
                         yield tool_event
-                    continue  # Continue to next iteration after tool execution
+                        # Check if this is a final answer event that should terminate
+                        if (tool_event.type == "final_answer" and
+                            tool_event.metadata and
+                            tool_event.metadata.get("completed") and
+                            tool_event.metadata.get("termination_reason") == "weather_location_tool_success"):
+                            should_terminate = True
+
+                    # If weather/location tool completed, terminate instead of continuing
+                    if should_terminate:
+                        return  # TERMINATE - weather/location tool provided final answer
+
+                    continue  # Continue to next iteration after regular tool execution
 
                 else:
                     # Unknown action type
@@ -401,6 +422,39 @@ DEEPSEEK: For this task, use Final Answer - it's easier and gives better results
 
             # Create observation
             if result.success:
+                # For weather and location tools, immediately return final answer
+                if action.tool_name in ["Weather", "Location"]:
+                    # Get the user's original query to format the answer appropriately
+                    current_task = self.agent.working_memory.get_current_task()
+                    if isinstance(current_task, dict):
+                        user_query = current_task.get("task", "").lower()
+                    else:
+                        user_query = str(current_task).lower() if current_task else ""
+
+                    # Format final answer based on query type
+                    final_answer = self._format_weather_location_final_answer(
+                        action.tool_name, result.result, user_query
+                    )
+
+                    # Add to memory
+                    self.agent.conversation_memory.add_observation(f"Tool execution successful. Result: {result.result}")
+
+                    # Yield final answer event to terminate loop
+                    yield StreamingEvent(
+                        type="final_answer",
+                        content=final_answer,
+                        metadata={
+                            "completed": True,
+                            "tool_name": action.tool_name,
+                            "termination_reason": "weather_location_tool_success"
+                        }
+                    )
+
+                    # Set agent state and add final response to memory
+                    self.agent.state = AgentState.COMPLETED
+                    self.agent.conversation_memory.add_assistant_message(final_answer)
+                    return  # TERMINATE - no more events
+
                 observation = f"Tool execution successful."
                 if result.result:
                     observation += f" Result: {result.result}"
@@ -460,6 +514,65 @@ DEEPSEEK: For this task, use Final Answer - it's easier and gives better results
 
             # Add error to memory
             self.agent.conversation_memory.add_observation(error_msg)
+
+    def _format_weather_location_final_answer(self, tool_name: str, tool_result: str, user_query: str) -> str:
+        """Format a natural final answer for weather/location queries.
+
+        Args:
+            tool_name: Name of the tool that was executed
+            tool_result: Raw result from the tool
+            user_query: Original user query (lowercase)
+
+        Returns:
+            Formatted final answer
+        """
+        if tool_name == "Weather":
+            # Extract key information from weather result
+            if "day after tomorrow" in user_query:
+                # Look for day after tomorrow info in the result
+                lines = tool_result.split('\n')
+                for line in lines:
+                    if "day after tomorrow" in line.lower():
+                        # Extract the weather info for day after tomorrow
+                        weather_info = line.replace("Day after tomorrow:", "").strip()
+                        return f"The day after tomorrow's weather will be {weather_info}."
+
+                # Fallback if specific line not found
+                return f"Based on the forecast, here's the weather information for the day after tomorrow:\n\n{tool_result}"
+
+            elif "tomorrow" in user_query and "day after" not in user_query:
+                # Look for tomorrow info
+                lines = tool_result.split('\n')
+                for line in lines:
+                    if "tomorrow" in line.lower():
+                        weather_info = line.replace("Tomorrow:", "").strip()
+                        return f"Tomorrow's weather will be {weather_info}."
+
+                return f"Here's tomorrow's weather information:\n\n{tool_result}"
+
+            elif "today" in user_query:
+                # Extract current conditions
+                if "Current conditions:" in tool_result:
+                    parts = tool_result.split("Current conditions:")
+                    if len(parts) > 1:
+                        current_info = parts[1].split("Forecast:")[0].strip()
+                        return f"Today's weather: {current_info}"
+
+                return f"Here's today's weather:\n\n{tool_result}"
+
+            else:
+                # General weather query
+                return f"Here's the current weather information:\n\n{tool_result}"
+
+        elif tool_name == "Location":
+            # Format location response
+            if "where am i" in user_query or "current location" in user_query:
+                return f"You are currently located at:\n\n{tool_result}"
+            else:
+                return f"Here's the location information:\n\n{tool_result}"
+
+        # Fallback
+        return f"Here's the information you requested:\n\n{tool_result}"
 
     def get_agent_status(self) -> Dict[str, Any]:
         """Get current agent status.

@@ -61,29 +61,25 @@ def _convert_acp_to_agent_tool(acp_spec) -> ToolDefinition:
     # Extract parameters from ACP spec
     parameters = []
 
-    # Required parameters
+    # Get required and all properties
     required_params = acp_spec.parameters.get("required", [])
-    for param_name in required_params:
-        param_info = acp_spec.parameters.get("optional", {}).get(param_name, {})
+    all_properties = acp_spec.parameters.get("properties", {})
+
+    # Also check "optional" for backward compatibility
+    if not all_properties and "optional" in acp_spec.parameters:
+        all_properties = acp_spec.parameters.get("optional", {})
+
+    # Process all parameters
+    for param_name, param_info in all_properties.items():
+        is_required = param_name in required_params
 
         parameters.append(ToolParameter(
             name=param_name,
             type=_map_json_type_to_python(param_info.get("type", "string")),
-            description=param_info.get("description", f"Required parameter {param_name}"),
-            required=True
+            description=param_info.get("description", f"{'Required' if is_required else 'Optional'} parameter {param_name}"),
+            required=is_required,
+            default=param_info.get("default")
         ))
-
-    # Optional parameters
-    optional_params = acp_spec.parameters.get("optional", {})
-    for param_name, param_info in optional_params.items():
-        if param_name not in required_params:
-            parameters.append(ToolParameter(
-                name=param_name,
-                type=_map_json_type_to_python(param_info.get("type", "string")),
-                description=param_info.get("description", f"Optional parameter {param_name}"),
-                required=False,
-                default=param_info.get("default")
-            ))
 
     # Create tool definition (we don't need the actual function here)
     return ToolDefinition(
@@ -139,7 +135,12 @@ def _map_capabilities_to_tool_type(capabilities: List[str]) -> ToolType:
         "file_search": ToolType.FILE_OPERATION,
         "text_editing": ToolType.FILE_OPERATION,
         "pattern_matching": ToolType.TEXT_PROCESSING,
-        "text_navigation": ToolType.TEXT_PROCESSING
+        "text_navigation": ToolType.TEXT_PROCESSING,
+        "location_services": ToolType.WEB_ACCESS,
+        "weather_services": ToolType.WEB_ACCESS,
+        "geolocation": ToolType.WEB_ACCESS,
+        "data_retrieval": ToolType.WEB_ACCESS,
+        "web_access": ToolType.WEB_ACCESS
     }
 
     # Find the most relevant tool type

@@ -32,6 +32,8 @@ from .enhanced_tools import (
     grep_tool, GrepTool,
     websearch_tool, WebSearchTool,
     webfetch_tool, WebFetchTool,
+    location_tool, LocationTool,
+    weather_tool, WeatherTool,
     register_enhanced_tools
 )
 from .task_management import (
@@ -139,6 +141,10 @@ __all__ = [
     "WebSearchTool",
     "webfetch_tool",
     "WebFetchTool",
+    "location_tool",
+    "LocationTool",
+    "weather_tool",
+    "WeatherTool",
 
     # Task Management
     "TaskStore",

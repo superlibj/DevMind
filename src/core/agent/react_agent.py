@@ -222,6 +222,11 @@ ONLY use tools for these specific cases:
 - Git operations
 - Running system commands
 
+🌍 MANDATORY TOOL USAGE - NO EXCEPTIONS:
+- ANY weather question (current, today, tomorrow, forecasts) → MUST use Weather tool
+- ANY location question (where am I, current location) → MUST use Location tool
+- NEVER try to answer weather/location from memory or reasoning - ALWAYS use the appropriate tool
+
 Available tools:
 {tools}
 
@@ -244,11 +249,13 @@ Action: file_write
 Action Input: {{"file_path": "test.js", "content": "console.log('hello')"}}
 
 🔥 CRITICAL RULES:
-1. Action MUST be EXACTLY one word from the tool names: file_read, file_write, git_status
+1. Action MUST be EXACTLY one word from the available tool names (see tools list above)
 2. Action Input MUST be valid JSON with double quotes
 3. NEVER use function call syntax like tool_name(args)
 4. NEVER use descriptions or sentences as Action names
 5. If you're unsure about format, use Final Answer instead
+6. AFTER A SUCCESSFUL TOOL EXECUTION: Immediately provide Final Answer with the result
+7. NEVER continue thinking after a tool gives you the information you need
 
 Examples:
 
@@ -270,6 +277,22 @@ USER: "How do I fix JavaScript errors?"
 Thought: This is asking for general advice, no file access needed
 Final Answer: Here are common ways to debug JavaScript errors...
 
+USER: "What's the weather today?"
+Thought: User wants current weather information, I need to use the Weather tool
+Action: Weather
+Action Input: {{"location": "current", "forecast_days": 1}}
+Observation: Weather for Current Location: Current conditions: Temperature: 15.7 C...
+Thought: Perfect! I have the weather information the user requested
+Final Answer: Based on the current weather data, today's weather is 15.7°C with overcast conditions...
+
+USER: "What's the weather the day after tomorrow?"
+Thought: User wants weather forecast for day after tomorrow, I need to get a 3-day forecast
+Action: Weather
+Action Input: {{"location": "current", "forecast_days": 3}}
+Observation: Weather for Current Location: Forecast: Today: 14 to 16 C... Tomorrow: 12 to 15 C... Day after tomorrow: 11 to 21 C, Mainly clear
+Thought: Perfect! The forecast shows day after tomorrow will be 11-21°C and mainly clear
+Final Answer: The day after tomorrow's weather will be mainly clear with temperatures ranging from 11 to 21°C.
+
 ⚠️ FORMAT VIOLATIONS WILL CAUSE ERRORS:
 ❌ Action: file_write(input={{"file_path": "test.js", "content": "code"}})
 ❌ Action: Read the file and analyze it
@@ -279,6 +302,25 @@ Final Answer: Here are common ways to debug JavaScript errors...
 ✅ ONLY CORRECT FORMAT:
 Action: file_read
 Action Input: {{"file_path": "test.js"}}
+
+🛑 CRITICAL TERMINATION RULE:
+When a tool returns the information requested by the user, IMMEDIATELY provide Final Answer.
+Do NOT continue thinking, planning, or executing more actions.
+
+🌤️ WEATHER/LOCATION ENFORCEMENT:
+❌ NEVER do this for weather questions:
+Thought: The weather is usually nice this time of year
+Final Answer: I don't have current weather data...
+
+✅ ALWAYS do this for ANY weather question:
+Thought: User is asking about weather, I MUST use the Weather tool
+Action: Weather
+Action Input: {"location": "current", "forecast_days": 3}
+
+❌ NEVER try to answer weather questions without tools
+❌ NEVER say "I don't have weather information"
+✅ ALWAYS use Weather tool for ANY weather-related query
+The user asked a question, you got the answer via tool, now give Final Answer.
 
 Guidelines:
 1. DEFAULT to direct answers - tools are the exception, not the rule
@@ -324,8 +366,12 @@ Final Answer: I found the bug in the snake game...
 
 This is EASIER than tools and gives complete answers!
 
-✅ ONLY use tools if you ABSOLUTELY need to read/write files.
+✅ ONLY use tools if you ABSOLUTELY need to read/write files or get weather/location.
 ✅ For analysis, debugging, explanations: USE FINAL ANSWER!
+✅ After ANY successful tool execution: IMMEDIATELY give Final Answer!
+✅ Weather tool gives you weather → Final Answer with weather info
+✅ Location tool gives you location → Final Answer with location info
+✅ File tool gives you content → Final Answer with the content
 
 DEEPSEEK RULES:
 - NEVER write tool_name() with parentheses
@@ -605,7 +651,13 @@ OR use Final Answer if no tools needed."""
                     continue
 
                 # Execute tool
-                await self._execute_tool_action(parsed_action)
+                final_answer = await self._execute_tool_action(parsed_action)
+
+                # If tool returns a final answer, terminate loop immediately
+                if final_answer is not None:
+                    logger.info(f"Tool {parsed_action.tool_name} returned final answer - terminating loop")
+                    self.state = AgentState.COMPLETED
+                    return final_answer
 
             else:
                 # Unknown action type
@@ -627,7 +679,8 @@ OR use Final Answer if no tools needed."""
 
         # System message with tools
         tools_description = self._get_tools_description()
-        system_prompt = self.system_prompt.format(tools=tools_description)
+        # Use simple string replacement to avoid conflicts with JSON braces in the prompt
+        system_prompt = self.system_prompt.replace('{tools}', tools_description)
 
         messages.append(LLMMessage(
             role="system",
@@ -896,19 +949,29 @@ Example:
 
         if action_input_match:
             input_text = action_input_match.group(1).strip()
+            # Write debug info to file
+            with open("/tmp/devmind_debug.txt", "a") as f:
+                f.write(f"\\n=== DEBUG ACTION INPUT ===\\n")
+                f.write(f"Raw input: '{input_text}'\\n")
+                f.write(f"Length: {len(input_text)}\\n")
+                f.write(f"Repr: {repr(input_text)}\\n")
+                f.write(f"========================\\n")
             try:
                 # Try to parse as JSON
                 action_input = json.loads(input_text)
-            except json.JSONDecodeError:
-                # If not JSON, provide helpful error
-                error_msg = f"""INVALID JSON in Action Input: {input_text[:100]}...
+            except json.JSONDecodeError as e:
+                # If not JSON, provide helpful error with exact input for debugging
+                error_msg = f"""INVALID JSON in Action Input: {input_text[:200]}
+JSON Error: {str(e)}
 
 Action Input must be valid JSON format:
 ✅ Action Input: {{"file_path": "example.js", "content": "code here"}}
 ❌ Action Input: file_path: example.js, content: code here
 
-Check your JSON syntax - make sure to use double quotes and proper formatting."""
+Check your JSON syntax - make sure to use double quotes and proper formatting.
+Received input: '{input_text}'"""
                 self.conversation_memory.add_observation(error_msg)
+                logger.error(f"JSON parsing error for action input: '{input_text}' - Error: {e}")
                 return None
 
         return AgentAction(
@@ -918,11 +981,15 @@ Check your JSON syntax - make sure to use double quotes and proper formatting.""
             reasoning=thought_match.group(1).strip() if thought_match else ""
         )
 
-    async def _execute_tool_action(self, action: AgentAction) -> None:
+    async def _execute_tool_action(self, action: AgentAction) -> Optional[str]:
         """Execute a tool action.
 
         Args:
             action: Action to execute
+
+        Returns:
+            Optional final answer if tool execution should terminate the loop,
+            None to continue normal ReAct flow
         """
         self.state = AgentState.ACTING
 
@@ -943,6 +1010,31 @@ Check your JSON syntax - make sure to use double quotes and proper formatting.""
         self.state = AgentState.OBSERVING
 
         if result.success:
+            # For weather and location tools, immediately return final answer to bypass loop
+            if action.tool_name in ["Weather", "Location"]:
+                logger.info(f"Weather/Location tool {action.tool_name} successful - returning final answer immediately")
+
+                # Format the final answer based on the original user query
+                current_task = self.working_memory.get_current_task()
+                if isinstance(current_task, dict):
+                    user_query = current_task.get("task", "").lower()
+                else:
+                    user_query = str(current_task).lower() if current_task else ""
+
+                final_answer = self._format_weather_location_answer(action.tool_name, result.result, user_query)
+
+                # Still record the action for completeness
+                self.conversation_memory.add_observation(f"Tool execution successful. Result: {result.result}")
+                self.working_memory.add_step(
+                    "action",
+                    f"Executed {action.tool_name}",
+                    result=result.result,
+                    error=None
+                )
+
+                # Return final answer to terminate loop
+                return final_answer
+
             observation = f"Tool execution successful. Result: {result.result}"
             if result.stdout:
                 observation += f"\nOutput: {result.stdout}"
@@ -960,6 +1052,68 @@ Check your JSON syntax - make sure to use double quotes and proper formatting.""
         )
 
         logger.info(f"Tool {action.tool_name} executed: success={result.success}")
+
+        # Return None to continue normal ReAct flow
+        return None
+
+    def _format_weather_location_answer(self, tool_name: str, tool_result: str, user_query: str) -> str:
+        """Format a natural final answer for weather/location queries.
+
+        Args:
+            tool_name: Name of the tool that was executed
+            tool_result: Raw result from the tool
+            user_query: Original user query (lowercase)
+
+        Returns:
+            Formatted final answer
+        """
+        if tool_name == "Weather":
+            # Extract key information from weather result
+            if "day after tomorrow" in user_query:
+                # Look for day after tomorrow info in the result
+                lines = tool_result.split('\n')
+                for line in lines:
+                    if "day after tomorrow" in line.lower():
+                        # Extract the weather info for day after tomorrow
+                        weather_info = line.replace("Day after tomorrow:", "").strip()
+                        return f"The day after tomorrow's weather will be {weather_info}."
+
+                # Fallback if specific line not found
+                return f"Based on the forecast, here's the weather information:\n\n{tool_result}"
+
+            elif "tomorrow" in user_query and "day after" not in user_query:
+                # Look for tomorrow info
+                lines = tool_result.split('\n')
+                for line in lines:
+                    if "tomorrow" in line.lower():
+                        weather_info = line.replace("Tomorrow:", "").strip()
+                        return f"Tomorrow's weather will be {weather_info}."
+
+                return f"Here's tomorrow's weather information:\n\n{tool_result}"
+
+            elif "today" in user_query:
+                # Extract current conditions
+                if "Current conditions:" in tool_result:
+                    parts = tool_result.split("Current conditions:")
+                    if len(parts) > 1:
+                        current_info = parts[1].split("Forecast:")[0].strip()
+                        return f"Today's weather: {current_info}"
+
+                return f"Here's today's weather:\n\n{tool_result}"
+
+            else:
+                # General weather query
+                return f"Here's the current weather information:\n\n{tool_result}"
+
+        elif tool_name == "Location":
+            # Format location response
+            if "where am i" in user_query or "current location" in user_query:
+                return f"You are currently located at:\n\n{tool_result}"
+            else:
+                return f"Here's the location information:\n\n{tool_result}"
+
+        # Fallback
+        return f"Here's the information you requested:\n\n{tool_result}"
 
     def get_conversation_history(self) -> List[Dict[str, Any]]:
         """Get the conversation history.

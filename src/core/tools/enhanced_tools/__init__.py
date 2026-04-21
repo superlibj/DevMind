@@ -13,6 +13,8 @@ from .glob_tool import GlobTool, glob_tool
 from .grep_tool import GrepTool, grep_tool
 from .websearch_tool import WebSearchTool, websearch_tool
 from .webfetch_tool import WebFetchTool, webfetch_tool
+from .location_tool import LocationTool, location_tool
+from .weather_tool import WeatherTool, weather_tool
 
 __all__ = [
     # Read tool
@@ -44,6 +46,14 @@ __all__ = [
     "websearch_tool",
     "WebFetchTool",
     "webfetch_tool",
+
+    # Location tool
+    "LocationTool",
+    "location_tool",
+
+    # Weather tool
+    "WeatherTool",
+    "weather_tool",
 ]
 
 
@@ -60,3 +70,5 @@ def register_enhanced_tools():
     register_acp_tool(grep_tool)
     register_acp_tool(websearch_tool)
     register_acp_tool(webfetch_tool)
+    register_acp_tool(location_tool)
+    register_acp_tool(weather_tool)

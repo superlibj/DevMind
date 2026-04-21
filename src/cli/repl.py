@@ -34,6 +34,7 @@ import re
 
 from ..core.agent.react_agent import ReActAgent
 from ..core.llm import create_llm
+from ..core.tools import initialize_acp_integration
 from .session_manager import SessionManager
 from .command_parser import CommandParser
 from .output_formatter import OutputFormatter
@@ -66,6 +67,12 @@ class DevMindREPL:
             timeout: API request timeout in seconds
             max_iterations: Maximum number of agent iterations for complex tasks
         """
+        # Initialize ACP tool integration (including location and weather tools)
+        try:
+            initialize_acp_integration()
+        except Exception as e:
+            console.print(f"[yellow]Warning: Failed to initialize ACP tools: {e}[/yellow]")
+
         self.session_manager = session_manager or SessionManager()
         self.command_parser = CommandParser(self)
         self.output_formatter = OutputFormatter()
@@ -193,7 +200,10 @@ class DevMindREPL:
 
         if numbered_matches and len(numbered_matches) >= 2:
             for num, label in numbered_matches:
-                options.append((num, f"{num}. {label.strip()}"))
+                clean_label = label.strip()
+                # Remove checkbox notation if present ([ ], [x], [X], or [✓])
+                clean_label = re.sub(r'^\[\s*[xX✓\s]*\]\s*', '', clean_label)
+                options.append((num, f"{num}. {clean_label}"))
             return options
 
         # Pattern 2: Lettered options (A. Option A, B. Option B, etc.)
@@ -202,16 +212,23 @@ class DevMindREPL:
 
         if lettered_matches and len(lettered_matches) >= 2:
             for letter, label in lettered_matches:
-                options.append((letter.lower(), f"{letter.upper()}. {label.strip()}"))
+                clean_label = label.strip()
+                # Remove checkbox notation if present ([ ], [x], [X], or [✓])
+                clean_label = re.sub(r'^\[\s*[xX✓\s]*\]\s*', '', clean_label)
+                options.append((letter.lower(), f"{letter.upper()}. {clean_label}"))
             return options
 
-        # Pattern 3: Bullet points with clear options
+        # Pattern 3: Bullet points with clear options (including checkbox format)
         bullet_pattern = r'^\s*[•\-\*]\s*(.+)$'
         bullet_matches = re.findall(bullet_pattern, text, re.MULTILINE)
 
         if bullet_matches and len(bullet_matches) >= 2:
             for i, label in enumerate(bullet_matches, 1):
                 clean_label = label.strip()
+
+                # Remove checkbox notation if present ([ ] or [x])
+                clean_label = re.sub(r'^\[\s*[x\s]*\]\s*', '', clean_label)
+
                 if len(clean_label) > 5 and len(clean_label) < 100:  # Reasonable option length
                     options.append((str(i), f"{i}. {clean_label}"))
             return options if len(options) >= 2 else []
@@ -421,6 +438,37 @@ class DevMindREPL:
         options = self._detect_options_in_text(response)
 
         if not options:
+            return None
+
+        # Only show interactive selection if user explicitly requested it
+        user_requested_interactive = False
+        try:
+            history = self.streaming_agent.get_conversation_history()
+            # Check last 2-3 user messages for explicit interactive requests
+            recent_user_messages = [
+                msg.get("content", "").lower()
+                for msg in history[-3:]
+                if msg.get("role") == "user"
+            ]
+
+            # Keywords that indicate user wants interactive selection
+            interactive_keywords = [
+                'interactive', 'multiselect', 'multi-select', 'multi select',
+                'select multiple', 'choose multiple', 'interactive selection',
+                'space to select', 'spacebar'
+            ]
+
+            for msg_content in recent_user_messages:
+                if any(keyword in msg_content for keyword in interactive_keywords):
+                    user_requested_interactive = True
+                    break
+
+        except Exception:
+            # If we can't access history, default to not showing interactive
+            user_requested_interactive = False
+
+        # If user didn't explicitly request interactive selection, don't show it
+        if not user_requested_interactive:
             return None
 
         # Detect if multiselect should be used
