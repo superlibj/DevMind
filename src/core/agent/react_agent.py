@@ -292,31 +292,45 @@ Guidelines:
         if is_deepseek:
             deepseek_addendum = """
 
-🚨🚨🚨 DEEPSEEK SPECIFIC WARNING 🚨🚨🚨
+🚨🚨🚨 CRITICAL DEEPSEEK FORMAT RULES 🚨🚨🚨
 
-You are Deepseek model. You have a tendency to use WRONG function call syntax.
-This is ABSOLUTELY FORBIDDEN and will cause errors.
+DEEPSEEK: You are known to use WRONG function call syntax. This BREAKS the system.
+Follow these rules EXACTLY or your response will be REJECTED:
 
-DEEPSEEK: You MUST NOT use this syntax:
-❌ file_write(input={{"file_path": "test.js"}})
-❌ file_read(input={{"file_path": "test.js"}})
-❌ Any function call with parentheses and input=
+❌ DEEPSEEK FORBIDDEN PATTERNS (NEVER USE):
+❌ file_write(input={{"file_path": "test.js"}})    ← NEVER parentheses
+❌ file_read(input={{"file_path": "test.js"}})     ← NEVER parentheses
+❌ any_tool_name({{"arg": "value"}})                ← NEVER parentheses
+❌ any_tool_name(arg=value)                        ← NEVER parentheses
+❌ function_style_calls()                          ← NEVER parentheses
 
-DEEPSEEK: You MUST use this syntax ONLY:
+✅ DEEPSEEK REQUIRED FORMAT (ONLY USE THIS):
 ✅ Action: file_write
 ✅ Action Input: {{"file_path": "test.js", "content": "code"}}
 
-DEEPSEEK REMEMBER:
-- NO parentheses after tool names
-- NO "input=" parameter syntax
-- ALWAYS use "Action:" label
-- ALWAYS use "Action Input:" label
-- NEVER use function call format
+✅ Action: file_read
+✅ Action Input: {{"file_path": "test.js"}}
 
-If you use function call syntax, the system will reject your response.
-When in doubt, use "Final Answer:" instead of tools.
+✅ DEEPSEEK STEP-BY-STEP:
+1. Write "Thought: [your thinking]"
+2. Write "Action: [tool_name]" (NO PARENTHESES!)
+3. Write "Action Input: [json]" (NO PARENTHESES!)
 
-🚨🚨🚨 END DEEPSEEK WARNING 🚨🚨🚨
+✅ DEEPSEEK ESCAPE OPTION - USE FINAL ANSWER:
+If you cannot get Action/Action Input format right, use this:
+Thought: [analysis]
+Final Answer: [complete detailed response]
+
+This bypasses tools but lets you provide helpful analysis!
+
+DEEPSEEK RULES:
+- NEVER write tool_name() with parentheses
+- NEVER write tool_name(args)
+- NEVER write input= syntax
+- ALWAYS write "Action:" on separate line
+- ALWAYS write "Action Input:" on separate line
+
+🚨🚨🚨 DEEPSEEK: PARENTHESES = INSTANT FAILURE 🚨🚨🚨
 """
             return base_prompt + deepseek_addendum
 
@@ -746,19 +760,22 @@ Please use the exact format shown above. Do NOT use function call syntax like {t
                 is_deepseek = hasattr(self.llm, 'config') and 'deepseek' in self.llm.config.model.lower()
 
                 if is_deepseek:
-                    error_msg = """🚨 DEEPSEEK FUNCTION CALL ERROR 🚨
+                    error_msg = """🚨 DEEPSEEK CRITICAL ERROR 🚨
 
-You are using FORBIDDEN function call syntax.
-Deepseek models MUST NOT use function calls like tool_name().
+YOU USED PARENTHESES! This is completely forbidden for Deepseek.
 
-DEEPSEEK ONLY ALLOWED FORMAT:
-Action: [tool_name]
-Action Input: {json_object}
+YOUR MISTAKE: You wrote something like tool_name()
+SYSTEM RULE: Deepseek CANNOT use function call syntax
 
-DEEPSEEK FORBIDDEN:
-- Any parentheses after tool names ❌
-- Function call syntax ❌
-- Input parameters in parentheses ❌
+✅ CORRECT FORMAT ONLY:
+Action: file_read
+Action Input: {{"file_path": "file.txt"}}
+
+❌ WHAT YOU DID WRONG:
+- Used parentheses () ← FORBIDDEN
+- Used function call syntax ← FORBIDDEN
+
+DEEPSEEK: Delete all parentheses! Use Action: format only!
 
 DEEPSEEK: Use the Action/Action Input format ONLY."""
                 else:

@@ -261,21 +261,24 @@ class StreamingReActAgent:
                     if format_error_history.count(error_type) <= max_error_repeats:
 
                         if is_deepseek:
-                            # Be more encouraging with Deepseek since it needs more attempts
+                            # Very direct and clear guidance for Deepseek
                             error_msg = f"""🚨 DEEPSEEK FORMAT ERROR #{consecutive_failures}/{max_failures} 🚨
 
-DEEPSEEK: Please use the correct format! You're close, just follow this pattern:
+STOP using parentheses! You keep making the same mistake.
 
-❌ WHAT YOU'RE DOING WRONG:
-- file_write(input={{...}}) ← Don't use parentheses
-- Any function calls with parentheses ← Don't use parentheses
-- input= parameter syntax ← Don't use input=
+❌ YOU DID THIS (WRONG):
+- tool_name() ← FORBIDDEN
+- tool_name(args) ← FORBIDDEN
+- tool_name(input={{...}}) ← FORBIDDEN
 
-✅ WHAT YOU SHOULD DO:
-Action: file_write
-Action Input: {{"file_path": "test.js", "content": "code here"}}
+✅ DO THIS INSTEAD (ONLY CORRECT WAY):
+Action: file_read
+Action Input: {{"file_path": "filename.txt"}}
 
-DEEPSEEK: Just use Action: [tool_name] and Action Input: [json] - no parentheses!"""
+OR if you can't get the format right:
+Final Answer: [Give your analysis directly]
+
+DEEPSEEK: NO PARENTHESES EVER! Just "Action:" then "Action Input:" """
                         else:
                             error_msg = f"🚨 FORMAT ERROR #{consecutive_failures}/{max_failures} 🚨\n\nCRITICAL: You MUST use this EXACT format:\n\nAction: [exact_tool_name]\nAction Input: [valid_json]\n\n❌ FORBIDDEN: file_write(input={{...}}) ← NEVER use this syntax\n\n✅ REQUIRED:\nAction: file_write\nAction Input: {{\"file_path\": \"test.js\", \"content\": \"code here\"}}"
 
