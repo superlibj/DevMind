@@ -142,7 +142,11 @@ class ReActAgent:
         # Handle case where file_path/filename comes in different parameter formats
         # Support both file_path (new standard) and filename (backward compatibility)
         if file_path is None and filename is None and 'input' in kwargs:
-            file_path = kwargs['input']
+            input_data = kwargs['input']
+            if isinstance(input_data, dict):
+                file_path = input_data.get('file_path') or input_data.get('filename')
+            elif isinstance(input_data, str):
+                file_path = input_data
 
         # Use file_path if available, fallback to filename for backward compatibility
         target_file = file_path or filename
