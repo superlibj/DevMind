@@ -215,9 +215,15 @@ class StreamingReActAgent:
                     # Check if this is a Deepseek model for specialized handling
                     is_deepseek = hasattr(self.agent.llm, 'config') and 'deepseek' in self.agent.llm.config.model.lower()
 
-                    # Track what type of format error this is (same logic as base agent)
+                    # Track what type of format error this is - improved detection
                     error_type = "unknown"
-                    if "function call pattern" in response_text.lower():
+
+                    # Check if this was a function call pattern detection
+                    tool_names = ["file_read", "file_write", "git_status"]
+                    has_function_call = any(f"{tool}(" in response_text for tool in tool_names)
+                    has_input_syntax = "input=" in response_text
+
+                    if has_function_call or has_input_syntax:
                         error_type = "function_call"
                     elif "action:" not in response_text.lower():
                         error_type = "missing_action"
@@ -227,11 +233,13 @@ class StreamingReActAgent:
                     format_error_history.append(error_type)
 
                     # Check for repeated identical errors (indicates model is stuck)
-                    # Be more lenient with Deepseek models - they need more attempts
-                    repeated_error_threshold = 5 if is_deepseek else 3
+                    # Be much more lenient with Deepseek models and only terminate on real issues
+                    repeated_error_threshold = 8 if is_deepseek else 4
                     if len(format_error_history) >= repeated_error_threshold:
                         recent_errors = format_error_history[-repeated_error_threshold:]
-                        if len(set(recent_errors)) == 1:  # All same error type
+                        # Only terminate if we have many actual function_call errors, not unknown
+                        real_errors = [e for e in recent_errors if e == "function_call"]
+                        if len(real_errors) >= 5:  # Must have 5+ confirmed function call errors
                             if is_deepseek:
                                 error_msg = f"Detected repeated format error pattern: {error_type}. Deepseek model is struggling with format. Consider switching to `claude-3-haiku` or `gpt-3.5-turbo` for better compatibility."
                             else:

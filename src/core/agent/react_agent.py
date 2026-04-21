@@ -746,11 +746,21 @@ Please use the exact format shown above. Do NOT use function call syntax like {t
             self.conversation_memory.add_observation(error_msg)
             return None
 
-        # Check for other invalid function call patterns
-        invalid_patterns = [
-            r"(\w+)\s*\([^)]*\)",  # function_name(args)
-            r"(\w+)\s*\(\s*\{.*?\}\s*\)",  # function_name({args})
-        ]
+        # Check for specific tool function call patterns (avoid false positives)
+        # Only flag actual tool names followed by parentheses, not general text
+        tool_names = ["file_read", "file_write", "git_status"]  # Known tools
+        invalid_patterns = []
+
+        for tool in tool_names:
+            # Match specific tool names followed by parentheses
+            invalid_patterns.append(rf"\b{tool}\s*\([^)]*\)")  # tool_name(args)
+            invalid_patterns.append(rf"\b{tool}\s*\(\s*input\s*=")  # tool_name(input=
+
+        # Also catch generic function call syntax that's clearly meant as tools
+        invalid_patterns.extend([
+            r"^\s*\w+\s*\(\s*input\s*=",  # line starts with tool_name(input=
+            r"^\s*\w+\s*\(\s*\{",  # line starts with tool_name({
+        ])
 
         for pattern in invalid_patterns:
             if re.search(pattern, response):
