@@ -275,10 +275,10 @@ class ModelConfigManager:
                 supports_tools=False,
                 description="Code Llama 34B - Best coding performance"
             ),
-            "deepseek-coder": ModelInfo(
-                name="deepseek-coder",
+            "deepseek-coder:ollama": ModelInfo(
+                name="deepseek-coder:ollama",
                 provider=ProviderType.OLLAMA,
-                max_tokens=4096,
+                max_tokens=8192,
                 context_window=16384,
                 capabilities=[
                     ModelCapability.CHAT,
