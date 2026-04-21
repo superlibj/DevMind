@@ -296,8 +296,9 @@ The issue should resolve automatically when Deepseek fixes their infrastructure.
                     if not params["model"].startswith("deepseek/"):
                         params["model"] = f"deepseek/{config.model}"
 
-                    # Add extra timeout for Deepseek
-                    params["timeout"] = max(params.get("timeout", 30), 60)
+                    # Use user's timeout for Deepseek (minimum 60s for stability)
+                    user_timeout = params.get("timeout", 60)
+                    params["timeout"] = max(user_timeout, 60) if user_timeout < 600 else user_timeout
 
                 logger.debug(f"Making LiteLLM request with model: {params['model']} (attempt {attempt + 1}/{max_retries})")
                 start_time = time.time()
