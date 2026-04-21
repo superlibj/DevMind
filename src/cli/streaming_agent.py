@@ -306,7 +306,10 @@ DEEPSEEK: Just use Action: [tool_name] and Action Input: [json] - no parentheses
 
                 # Reset failure counter on successful parse
                 consecutive_failures = 0
-                format_error_history.clear()  # Clear error history on success
+                try:
+                    format_error_history.clear()  # Clear error history on success
+                except NameError:
+                    pass  # Handle edge case where variable isn't accessible
 
                 # Handle different action types
                 if parsed_action.action_type == "final_answer":
@@ -414,7 +417,10 @@ DEEPSEEK: Just use Action: [tool_name] and Action Input: [json] - no parentheses
 
                 # Reset failure counters on successful action (especially important for Deepseek)
                 consecutive_failures = 0
-                format_error_history.clear()  # Give fresh start on error tracking
+                try:
+                    format_error_history.clear()  # Give fresh start on error tracking
+                except NameError:
+                    pass  # Handle edge case where variable isn't accessible
             else:
                 observation = f"Tool execution failed. Error: {result.error}"
                 if result.stderr:
