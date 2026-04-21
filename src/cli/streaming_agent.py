@@ -103,7 +103,9 @@ class StreamingReActAgent:
         """Execute streaming ReAct loop with real-time updates."""
 
         consecutive_failures = 0
-        max_failures = 2  # Same as base agent
+        # Give Deepseek models more chances since they need more guidance
+        is_deepseek = hasattr(self.agent.llm, 'config') and 'deepseek' in self.agent.llm.config.model.lower()
+        max_failures = 5 if is_deepseek else 2  # More tolerance for Deepseek
         max_loop_iterations = 8  # Hard limit to prevent runaway loops
         format_error_history = []  # Track repeated format errors
 
@@ -218,6 +220,9 @@ class StreamingReActAgent:
                 if parsed_action is None:
                     consecutive_failures += 1
 
+                    # Check if this is a Deepseek model for specialized handling
+                    is_deepseek = hasattr(self.agent.llm, 'config') and 'deepseek' in self.agent.llm.config.model.lower()
+
                     # Track what type of format error this is (same logic as base agent)
                     error_type = "unknown"
                     if "function call pattern" in response_text.lower():
@@ -230,12 +235,19 @@ class StreamingReActAgent:
                     format_error_history.append(error_type)
 
                     # Check for repeated identical errors (indicates model is stuck)
-                    if len(format_error_history) >= 3:
-                        recent_errors = format_error_history[-3:]
+                    # Be more lenient with Deepseek models - they need more attempts
+                    repeated_error_threshold = 5 if is_deepseek else 3
+                    if len(format_error_history) >= repeated_error_threshold:
+                        recent_errors = format_error_history[-repeated_error_threshold:]
                         if len(set(recent_errors)) == 1:  # All same error type
+                            if is_deepseek:
+                                error_msg = f"Detected repeated format error pattern: {error_type}. Deepseek model is struggling with format. Consider switching to `claude-3-haiku` or `gpt-3.5-turbo` for better compatibility."
+                            else:
+                                error_msg = f"Detected repeated format error pattern: {error_type}. The model appears to be stuck. Please try switching to `/model gpt-3.5-turbo` or `/model claude-3-sonnet-20240229` for better compatibility."
+
                             yield StreamingEvent(
                                 type="error",
-                                content=f"Detected repeated format error pattern: {error_type}. The model appears to be stuck. Please try switching to `/model gpt-3.5-turbo` or `/model claude-3-sonnet-20240229` for better compatibility.",
+                                content=error_msg,
                                 metadata={"termination_reason": "repeated_errors", "error_type": error_type}
                             )
                             return
@@ -250,25 +262,28 @@ class StreamingReActAgent:
                         return
 
                     # Only add error message if we haven't seen this error type repeatedly
-                    if format_error_history.count(error_type) <= 2:
-                        # Check if this is a Deepseek model for specialized error message
-                        is_deepseek = hasattr(self.agent.llm, 'config') and 'deepseek' in self.agent.llm.config.model.lower()
+                    # Check if this is a Deepseek model for specialized error message
+                    is_deepseek = hasattr(self.agent.llm, 'config') and 'deepseek' in self.agent.llm.config.model.lower()
+                    # Give Deepseek models more chances to see error messages
+                    max_error_repeats = 4 if is_deepseek else 2
+                    if format_error_history.count(error_type) <= max_error_repeats:
 
                         if is_deepseek:
+                            # Be more encouraging with Deepseek since it needs more attempts
                             error_msg = f"""🚨 DEEPSEEK FORMAT ERROR #{consecutive_failures}/{max_failures} 🚨
 
-DEEPSEEK: You are using FORBIDDEN function call syntax!
+DEEPSEEK: Please use the correct format! You're close, just follow this pattern:
 
-❌ FORBIDDEN FOR DEEPSEEK:
-- file_write(input={{...}}) ← NEVER use this
-- Any function calls with parentheses ← NEVER use this
-- input= parameter syntax ← NEVER use this
+❌ WHAT YOU'RE DOING WRONG:
+- file_write(input={{...}}) ← Don't use parentheses
+- Any function calls with parentheses ← Don't use parentheses
+- input= parameter syntax ← Don't use input=
 
-✅ DEEPSEEK MUST USE ONLY:
+✅ WHAT YOU SHOULD DO:
 Action: file_write
 Action Input: {{"file_path": "test.js", "content": "code here"}}
 
-DEEPSEEK: Follow the Action/Action Input format EXACTLY or be rejected!"""
+DEEPSEEK: Just use Action: [tool_name] and Action Input: [json] - no parentheses!"""
                         else:
                             error_msg = f"🚨 FORMAT ERROR #{consecutive_failures}/{max_failures} 🚨\n\nCRITICAL: You MUST use this EXACT format:\n\nAction: [exact_tool_name]\nAction Input: [valid_json]\n\n❌ FORBIDDEN: file_write(input={{...}}) ← NEVER use this syntax\n\n✅ REQUIRED:\nAction: file_write\nAction Input: {{\"file_path\": \"test.js\", \"content\": \"code here\"}}"
 
@@ -396,6 +411,10 @@ DEEPSEEK: Follow the Action/Action Input format EXACTLY or be rejected!"""
                         "stdout": result.stdout
                     }
                 )
+
+                # Reset failure counters on successful action (especially important for Deepseek)
+                consecutive_failures = 0
+                format_error_history.clear()  # Give fresh start on error tracking
             else:
                 observation = f"Tool execution failed. Error: {result.error}"
                 if result.stderr:
