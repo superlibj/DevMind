@@ -949,13 +949,6 @@ Example:
 
         if action_input_match:
             input_text = action_input_match.group(1).strip()
-            # Write debug info to file
-            with open("/tmp/devmind_debug.txt", "a") as f:
-                f.write(f"\\n=== DEBUG ACTION INPUT ===\\n")
-                f.write(f"Raw input: '{input_text}'\\n")
-                f.write(f"Length: {len(input_text)}\\n")
-                f.write(f"Repr: {repr(input_text)}\\n")
-                f.write(f"========================\\n")
             try:
                 # Try to parse as JSON
                 action_input = json.loads(input_text)

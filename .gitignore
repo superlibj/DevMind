@@ -124,3 +124,19 @@ dump.rdb
 
 # Node modules (if any frontend)
 node_modules/
+
+# Development artifacts and session data
+sessions/
+debug_*.py
+test_*_fix.py
+minimal_*.py
+*.bundle
+*.tar.gz
+demo.py
+example_*.py
+script*.js
+snake-*.html
+deployment_simulation.py
+
+# Temporary debug files
+/tmp/*devmind*

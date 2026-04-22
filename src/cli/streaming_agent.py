@@ -88,10 +88,9 @@ class StreamingReActAgent:
             tb_str = traceback.format_exc()
             yield StreamingEvent(
                 type="error",
-                content=f"Agent error: {type(e).__name__}: {str(e)}\\nFull error: {tb_str[:300]}",
+                content=f"Agent error: {str(e)}",
                 metadata={
                     "exception": str(e),
-                    "traceback": tb_str,
                     "exception_type": type(e).__name__
                 }
             )
@@ -103,11 +102,9 @@ class StreamingReActAgent:
         """Execute streaming ReAct loop with real-time updates."""
 
         consecutive_failures = 0
-        # Give Deepseek models more chances since they need more guidance
-        is_deepseek = hasattr(self.agent.llm, 'config') and 'deepseek' in self.agent.llm.config.model.lower()
-        max_failures = 8 if is_deepseek else 2  # Extra tolerance for Deepseek format learning
-        max_loop_iterations = self.agent.max_iterations  # Use user's --max-iterations setting
-        format_error_history = []  # Track repeated format errors
+        max_failures = 3  # Maximum format failures before giving up
+        max_loop_iterations = self.agent.max_iterations
+        format_error_history = []
 
         while True:  # Use infinite loop with explicit breaks
             self.agent.iteration_count += 1
@@ -221,8 +218,6 @@ class StreamingReActAgent:
                 if parsed_action is None:
                     consecutive_failures += 1
 
-                    # Check if this is a Deepseek model for specialized handling
-                    is_deepseek = hasattr(self.agent.llm, 'config') and 'deepseek' in self.agent.llm.config.model.lower()
 
                     # Track what type of format error this is - improved detection
                     error_type = "unknown"
@@ -242,17 +237,13 @@ class StreamingReActAgent:
                     format_error_history.append(error_type)
 
                     # Check for repeated identical errors (indicates model is stuck)
-                    # Be much more lenient with Deepseek models and only terminate on real issues
-                    repeated_error_threshold = 8 if is_deepseek else 4
+                    repeated_error_threshold = 4
                     if len(format_error_history) >= repeated_error_threshold:
                         recent_errors = format_error_history[-repeated_error_threshold:]
-                        # Only terminate if we have many actual function_call errors, not unknown
-                        real_errors = [e for e in recent_errors if e == "function_call"]
-                        if len(real_errors) >= 5:  # Must have 5+ confirmed function call errors
-                            if is_deepseek:
-                                error_msg = f"Detected repeated format error pattern: {error_type}. Deepseek model is struggling with format. Consider switching to `claude-3-haiku` or `gpt-3.5-turbo` for better compatibility."
-                            else:
-                                error_msg = f"Detected repeated format error pattern: {error_type}. The model appears to be stuck. Please try switching to `/model gpt-3.5-turbo` or `/model claude-3-sonnet-20240229` for better compatibility."
+                        # Only terminate if we have many actual function_call errors
+                        function_call_errors = [e for e in recent_errors if e == "function_call"]
+                        if len(function_call_errors) >= 3:
+                            error_msg = f"Model is having persistent format issues. Try switching to a different model."
 
                             yield StreamingEvent(
                                 type="error",
@@ -271,30 +262,10 @@ class StreamingReActAgent:
                         return
 
                     # Only add error message if we haven't seen this error type repeatedly
-                    # Check if this is a Deepseek model for specialized error message
-                    is_deepseek = hasattr(self.agent.llm, 'config') and 'deepseek' in self.agent.llm.config.model.lower()
-                    # Give Deepseek models more chances to see error messages
-                    max_error_repeats = 4 if is_deepseek else 2
+                    max_error_repeats = 2
                     if format_error_history.count(error_type) <= max_error_repeats:
 
-                        if is_deepseek:
-                            # Very direct and clear guidance for Deepseek
-                            error_msg = f"""🚨 DEEPSEEK FORMAT ERROR #{consecutive_failures}/{max_failures} 🚨
-
-DEEPSEEK: STOP struggling with tools! Use Final Answer instead:
-
-✅ RECOMMENDED (EASY & WORKS):
-Final Answer: I analyzed the snake game and found these issues...
-
-This works PERFECTLY for analysis, debugging, and explanations!
-
-❌ STOP TRYING THESE (THEY BREAK):
-- tool_name() ← FORBIDDEN
-- tool_name(input={{...}}) ← FORBIDDEN
-
-DEEPSEEK: For this task, use Final Answer - it's easier and gives better results!"""
-                        else:
-                            error_msg = f"🚨 FORMAT ERROR #{consecutive_failures}/{max_failures} 🚨\n\nCRITICAL: You MUST use this EXACT format:\n\nAction: [exact_tool_name]\nAction Input: [valid_json]\n\n❌ FORBIDDEN: file_write(input={{...}}) ← NEVER use this syntax\n\n✅ REQUIRED:\nAction: file_write\nAction Input: {{\"file_path\": \"test.js\", \"content\": \"code here\"}}"
+                        error_msg = f"🚨 FORMAT ERROR #{consecutive_failures}/{max_failures} 🚨\n\nPlease use this EXACT format:\n\nAction: [tool_name]\nAction Input: [valid_json]\n\n❌ FORBIDDEN: tool_name(args) syntax\n✅ REQUIRED: Action/Action Input format"
 
                         self.agent.conversation_memory.add_observation(error_msg)
 
@@ -338,21 +309,15 @@ DEEPSEEK: For this task, use Final Answer - it's easier and gives better results
 
                 elif parsed_action.action_type == "tool_use":
                     # Execute tool with streaming
-                    should_terminate = False
                     async for tool_event in self._stream_tool_execution(parsed_action):
                         yield tool_event
-                        # Check if this is a final answer event that should terminate
+                        # Check if tool execution completed with final answer
                         if (tool_event.type == "final_answer" and
                             tool_event.metadata and
-                            tool_event.metadata.get("completed") and
-                            tool_event.metadata.get("termination_reason") == "weather_location_tool_success"):
-                            should_terminate = True
+                            tool_event.metadata.get("completed")):
+                            return  # Tool provided final answer, terminate loop
 
-                    # If weather/location tool completed, terminate instead of continuing
-                    if should_terminate:
-                        return  # TERMINATE - weather/location tool provided final answer
-
-                    continue  # Continue to next iteration after regular tool execution
+                    continue  # Continue to next iteration after tool execution
 
                 else:
                     # Unknown action type
@@ -422,38 +387,32 @@ DEEPSEEK: For this task, use Final Answer - it's easier and gives better results
 
             # Create observation
             if result.success:
-                # For weather and location tools, immediately return final answer
+                # For weather and location tools, provide immediate final answer
                 if action.tool_name in ["Weather", "Location"]:
-                    # Get the user's original query to format the answer appropriately
+                    # Get the user's original query
                     current_task = self.agent.working_memory.get_current_task()
+                    user_query = ""
                     if isinstance(current_task, dict):
                         user_query = current_task.get("task", "").lower()
-                    else:
-                        user_query = str(current_task).lower() if current_task else ""
+                    elif current_task:
+                        user_query = str(current_task).lower()
 
-                    # Format final answer based on query type
+                    # Format final answer
                     final_answer = self._format_weather_location_final_answer(
                         action.tool_name, result.result, user_query
                     )
 
-                    # Add to memory
+                    # Add to memory and complete
                     self.agent.conversation_memory.add_observation(f"Tool execution successful. Result: {result.result}")
+                    self.agent.conversation_memory.add_assistant_message(final_answer)
 
-                    # Yield final answer event to terminate loop
+                    # Yield final answer and terminate
                     yield StreamingEvent(
                         type="final_answer",
                         content=final_answer,
-                        metadata={
-                            "completed": True,
-                            "tool_name": action.tool_name,
-                            "termination_reason": "weather_location_tool_success"
-                        }
+                        metadata={"completed": True, "tool_name": action.tool_name}
                     )
-
-                    # Set agent state and add final response to memory
-                    self.agent.state = AgentState.COMPLETED
-                    self.agent.conversation_memory.add_assistant_message(final_answer)
-                    return  # TERMINATE - no more events
+                    return
 
                 observation = f"Tool execution successful."
                 if result.result:
@@ -471,7 +430,7 @@ DEEPSEEK: For this task, use Final Answer - it's easier and gives better results
                     }
                 )
 
-                # Reset failure counters on successful action (especially important for Deepseek)
+                # Reset failure counters on successful action
                 consecutive_failures = 0
                 try:
                     format_error_history.clear()  # Give fresh start on error tracking

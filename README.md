@@ -1,132 +1,260 @@
-# AI Code Development Agent
+# DevMind - Interactive AI Development Assistant
 
-A comprehensive AI-powered development assistant that provides secure code generation, review, refactoring, and debugging capabilities.
+A powerful CLI-based AI development assistant that provides intelligent code generation, debugging, and development support with integrated weather and location services.
 
-## Features
+## 🚀 Features
 
-- **Multi-Provider LLM Support**: Seamlessly switch between OpenAI, Anthropic Claude, and local models
-- **Security-First Code Generation**: Automatic vulnerability scanning with Bandit, Semgrep, and Safety
-- **ReAct Agent Pattern**: Production-proven reasoning and acting cycles for complex tasks
-- **Tool Integration**: Standardized tool access for git, vim, and file operations
-- **Real-time Web Interface**: REST API with WebSocket support for live chat
-- **Docker Deployment**: Production-ready containerized deployment
+### Core Capabilities
+- **Interactive CLI Interface**: Rich terminal experience with streaming responses and syntax highlighting
+- **Multi-Model LLM Support**: OpenAI, Anthropic Claude, DeepSeek, and local models via Ollama
+- **Intelligent Code Assistant**: Code generation, review, debugging, and refactoring
+- **Development Tools Integration**: Git operations, file management, and system commands
+- **Session Management**: Persistent conversations with save/load functionality
 
-## Quick Start
+### Enhanced Services
+- **Weather Integration**: Real-time weather forecasts and conditions
+- **Location Services**: IP geolocation and location-based queries
+- **Streaming Real-time Responses**: Live conversation with progress indicators
+- **Token Usage Tracking**: Cost monitoring and usage statistics
 
-1. **Clone and Setup**
-   ```bash
-   git clone <repository-url>
-   cd aiagent
-   cp .env.example .env
-   # Edit .env with your API keys and configuration
-   ```
+## 🎯 Quick Start
 
-2. **Install Dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
+### Installation
 
-3. **Run Development Server**
-   ```bash
-   uvicorn src.api.main:app --reload
-   ```
+```bash
+# Clone the repository
+git clone <repository-url>
+cd aiagent
 
-4. **Run with Docker**
-   ```bash
-   docker-compose up -d
-   ```
+# Install dependencies
+pip install -r requirements.txt
 
-## Architecture
+# Configure environment
+cp .env.example .env
+# Edit .env with your API keys
+```
 
-### Core Components
+### Basic Usage
 
-- **Agent System**: ReAct pattern implementation with memory management
-- **LLM Abstraction**: Universal provider interface supporting 100+ models
-- **Security Layer**: Comprehensive code scanning and vulnerability detection
-- **Tool Integration**: ACP-compliant tool access with safety controls
-- **Web Interface**: FastAPI-based REST API with WebSocket chat
+```bash
+# Start DevMind
+python main.py
 
-### Security Features
+# Start with specific model
+python main.py --model claude-3-sonnet-20240229
 
-- Automatic SAST/SCA scanning of all generated code
-- Input validation and injection prevention
-- Sandboxed code execution with resource limits
-- JWT authentication with role-based access control
-- Rate limiting and request validation
+# Start with local model
+python main.py --model qwen2.5-coder:7b
 
-## Configuration
+# Show available models
+python main.py --list-models
+```
 
-All configuration is managed through environment variables. See `.env.example` for available options.
+## 🔧 Configuration
 
-Key configuration areas:
-- **LLM Providers**: API keys and model selection
-- **Security**: Scanning tools and validation rules
-- **Database**: PostgreSQL connection settings
-- **Redis**: Cache and session configuration
-- **Tools**: Integration limits and allowed operations
+Create a `.env` file with your API keys:
 
-## API Documentation
+```bash
+# LLM Provider API Keys
+OPENAI_API_KEY=your_openai_key_here
+ANTHROPIC_API_KEY=your_anthropic_key_here
+DEEPSEEK_API_KEY=your_deepseek_key_here
 
-Once running, visit:
-- API Documentation: `http://localhost:8000/docs`
-- Interactive API: `http://localhost:8000/redoc`
+# Default Settings
+DEFAULT_LLM_PROVIDER=local
+LOCAL_MODEL_NAME=qwen2.5-coder:7b
+LOCAL_MODEL_ENDPOINT=http://localhost:11434
 
-## Development
+# CLI Preferences
+CLI_STREAM_RESPONSES=true
+CLI_AUTO_SAVE=true
+CLI_SYNTAX_HIGHLIGHTING=true
+```
 
-### Project Structure
+## 💻 Interactive Commands
+
+### Session Management
+```bash
+/save project-name "Description"    # Save current session
+/load project-name                  # Load saved session
+/sessions                          # List all sessions
+/clear                            # Clear current conversation
+```
+
+### Model Management
+```bash
+/model claude-3-sonnet-20240229    # Switch to Claude
+/model qwen2.5-coder:7b           # Switch to local model
+/models                           # List available models
+```
+
+### Development Tools
+```bash
+/tokens                           # Show token usage
+/help                            # Show help information
+/exit                            # Exit DevMind
+```
+
+## 🌍 Weather & Location Features
+
+DevMind includes integrated weather and location services:
+
+```bash
+# Weather queries
+what's the weather like today?
+what's the forecast for tomorrow?
+how's the weather in Tokyo?
+
+# Location queries
+where am I located?
+what's my current location?
+```
+
+## 🤖 Supported Models
+
+### Cloud Models
+- **OpenAI**: GPT-4, GPT-3.5-turbo, GPT-4-turbo
+- **Anthropic**: Claude-3 Opus, Sonnet, Haiku
+- **DeepSeek**: DeepSeek-Chat, DeepSeek-Coder
+
+### Local Models (via Ollama)
+- **Code-Specialized**: qwen2.5-coder, codellama, deepseek-coder
+- **General Purpose**: llama3.2, mistral, phi3
+
+## 📁 Project Structure
 
 ```
 aiagent/
+├── main.py                 # CLI entry point
 ├── src/
-│   ├── core/                 # Core agent and AI logic
-│   ├── domain/              # Business logic and services
-│   ├── api/                 # Web API and routes
-│   └── web/                 # Web interface
-├── config/                  # Configuration management
-├── tests/                   # Test suite
-├── scripts/                 # Setup and deployment scripts
-└── monitoring/              # Observability configuration
+│   ├── cli/               # CLI interface components
+│   │   ├── repl.py       # Interactive REPL
+│   │   ├── streaming_agent.py  # Streaming responses
+│   │   └── session_manager.py  # Session persistence
+│   ├── core/              # Core AI logic
+│   │   ├── agent/        # ReAct agent implementation
+│   │   ├── llm/          # Multi-LLM abstraction
+│   │   ├── security/     # Input validation and safety
+│   │   └── tools/        # Development tools integration
+│   └── domain/           # Business logic services
+├── config/               # Configuration management
+├── docs/                 # Documentation
+└── tests/               # Test suite
 ```
 
-### Testing
+## 🛠 Development Tools
+
+DevMind integrates with essential development tools:
+
+### File Operations
+- Read, write, edit files with syntax highlighting
+- Glob pattern matching and content search
+- Directory operations and file management
+
+### Git Integration
+- Repository operations and status checking
+- Smart commit suggestions and PR creation
+- Branch management and merge conflict resolution
+
+### Code Analysis
+- Syntax validation and error detection
+- Code review and optimization suggestions
+- Security scanning and vulnerability detection
+
+## 🌐 Web Services Integration
+
+### Weather Services
+- Real-time weather data via Open-Meteo API
+- Location-based forecasts and conditions
+- Multi-day forecasts and weather alerts
+
+### Location Services
+- IP-based geolocation detection
+- Geocoding and reverse geocoding
+- Location-aware weather queries
+
+## 📊 Token Usage & Cost Tracking
+
+Monitor your LLM usage in real-time:
 
 ```bash
-pytest tests/ -v --cov=src
+# Real-time display during usage
+📊 Tokens: 1,245 (prompt: 850, completion: 395) | Cost: $0.002340 | Model: claude-3-sonnet
+
+# Session summary
+╭─ Session Summary ────────────────────────────────────╮
+│ Duration       │ 15.3 minutes                        │
+│ Total Requests │ 12                                  │
+│ Total Tokens   │ 15,420                             │
+│ Total Cost     │ $0.028560                          │
+╰──────────────────────────────────────────────────────╯
 ```
 
-### Code Quality
+## 🔒 Security Features
+
+- **Input Validation**: Comprehensive sanitization of all inputs
+- **Code Safety**: Automatic security scanning of generated code
+- **Sandboxed Execution**: Safe execution environment for code operations
+- **API Key Protection**: Secure credential management
+
+## 🧪 Testing
 
 ```bash
-black src/
-mypy src/
-bandit -r src/
+# Run test suite
+python -m pytest tests/
+
+# Run with coverage
+python -m pytest tests/ --cov=src
+
+# Test specific components
+python -m pytest tests/cli/
+python -m pytest tests/core/
 ```
 
-## Deployment
+## 🚀 Deployment Options
 
-### Production Deployment
-
+### Local Development
 ```bash
-docker-compose -f docker-compose.yml up -d
+python main.py
 ```
 
-### Monitoring
+### Docker (Optional)
+```bash
+docker-compose up -d
+```
 
-- Prometheus metrics: `http://localhost:9090`
-- Grafana dashboards: `http://localhost:3000`
+### Local Model Setup
+```bash
+# Install Ollama
+curl -fsSL https://ollama.com/install.sh | sh
 
-## Contributing
+# Pull models
+ollama pull qwen2.5-coder:7b
+ollama pull codellama
+```
+
+## 📚 Documentation
+
+- [Installation Guide](docs/installation.md)
+- [Configuration Options](docs/configuration.md)
+- [Local Models Setup](docs/local-models.md)
+- [API Reference](docs/api-reference.md)
+- [Troubleshooting](docs/troubleshooting.md)
+
+## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes with tests
-4. Run the test suite and security checks
-5. Submit a pull request
+4. Submit a pull request
 
-## License
+## 📄 License
 
-[Add your license information here]
+MIT License - see LICENSE file for details
 
-## Support
+## 🙏 Acknowledgments
 
-For issues and questions, please use the GitHub issue tracker.
+- Built with [Rich](https://github.com/Textualize/rich) for beautiful terminal output
+- [LiteLLM](https://github.com/BerriAI/litellm) for multi-provider LLM support
+- [Ollama](https://ollama.com/) for local model hosting
+- Weather data provided by [Open-Meteo](https://open-meteo.com/)
