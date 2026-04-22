@@ -301,7 +301,7 @@ class LlamaCppHelper:
             instructions_text += "   ./server -m models/your-model.gguf -c 4096 --port 8080\n"
 
         instructions_text += "\n[bold]5. Test in DevMind:[/bold]\n"
-        instructions_text += "   devmind> /model llama-cpp-local\n"
+        instructions_text += "   devmind> /model llama-cpp\n"
         instructions_text += "   devmind> Hello! Can you help me code?\n"
 
         instructions_text += "\n[bold]Recommended GGUF Models:[/bold]\n"

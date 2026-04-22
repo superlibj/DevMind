@@ -39,7 +39,7 @@ class LLMSettings(BaseSettings):
 
     # DeepSeek
     deepseek_api_key: Optional[str] = Field(default=None, env="DEEPSEEK_API_KEY")
-    deepseek_model: str = Field(default="deepseek-chat", env="DEEPSEEK_MODEL")
+    deepseek_model: str = Field(default="deepseek", env="DEEPSEEK_MODEL")
 
     # Local models
     local_model_endpoint: Optional[str] = Field(default=None, env="LOCAL_MODEL_ENDPOINT")

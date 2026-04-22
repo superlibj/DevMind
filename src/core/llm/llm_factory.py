@@ -243,7 +243,7 @@ class LLMFactory:
                 "gpt-4-turbo-preview",
                 "claude-3-sonnet-20240229",
                 "gpt-4",
-                "deepseek-coder",
+                "deepseek",
                 "codellama"
             ]
         elif task_type == "fast":

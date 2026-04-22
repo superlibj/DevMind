@@ -62,7 +62,7 @@ LOCAL_MODEL_ENDPOINT=http://localhost:11434
 #### llama.cpp
 ```bash
 DEFAULT_LLM_PROVIDER=local
-LOCAL_MODEL_NAME=llama-cpp-codeqwen
+LOCAL_MODEL_NAME=llama-cpp
 LOCAL_MODEL_ENDPOINT=http://localhost:8080/v1
 ```
 

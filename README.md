@@ -115,7 +115,7 @@ what's my current location?
 ### Cloud Models
 - **OpenAI**: GPT-4, GPT-3.5-turbo, GPT-4-turbo
 - **Anthropic**: Claude-3 Opus, Sonnet, Haiku
-- **DeepSeek**: DeepSeek-Chat, DeepSeek-Coder
+- **DeepSeek**: DeepSeek-Chat (conversation and coding)
 
 ### Local Models (via Ollama)
 - **Code-Specialized**: qwen2.5-coder, codellama, deepseek-coder

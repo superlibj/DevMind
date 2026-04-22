@@ -170,16 +170,9 @@ class DevMindREPL:
         # Show commands in columns for better display
         commands = list(self.command_selector.completer.commands.items())
 
-        # Display in 2 columns with better formatting
-        for i in range(0, len(commands), 2):
-            line = ""
-            for j in range(2):
-                if i + j < len(commands):
-                    cmd, desc = commands[i + j]
-                    # Truncate long descriptions
-                    short_desc = desc[:28] + "..." if len(desc) > 28 else desc
-                    line += f"[cyan]/{cmd:<12}[/cyan][dim]{short_desc:<32}[/dim]"
-            console.print(line.rstrip())
+        # Display commands with full descriptions (single column for readability)
+        for cmd, desc in commands:
+            console.print(f"[cyan]/{cmd:<12}[/cyan][dim]{desc}[/dim]")
 
         console.print("[dim]Press [b]Tab[/b] after typing command name for auto-completion[/dim]")
 

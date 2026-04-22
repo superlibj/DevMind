@@ -65,23 +65,25 @@ def list_available_models():
 
     providers = {}
     for provider in ProviderType:
-        models = model_config_manager.list_models(provider=provider)
-        if models:
-            providers[provider] = models
+        # Get model items (key, info) pairs to show user-facing names
+        model_items = [(k, v) for k, v in model_config_manager._models.items()
+                      if v.provider == provider]
+        if model_items:
+            providers[provider] = model_items
 
-    for provider, models in providers.items():
+    for provider, model_items in providers.items():
         console.print(f"[bold bright_blue]{provider.value.upper()}:[/bold bright_blue]")
-        for model in models:
-            capabilities = ", ".join([cap.value for cap in model.capabilities])
+        for model_key, model_info in model_items:
+            capabilities = ", ".join([cap.value for cap in model_info.capabilities])
             cost_info = ""
-            if model.cost_per_1k_input:
-                cost_info = f" (${model.cost_per_1k_input:.4f}/1k tokens)"
+            if model_info.cost_per_1k_input:
+                cost_info = f" (${model_info.cost_per_1k_input:.4f}/1k tokens)"
 
-            console.print(f"  • [cyan]{model.name}[/cyan]{cost_info}")
-            console.print(f"    {model.description}")
-            if model.supports_tools:
+            console.print(f"  • [cyan]{model_key}[/cyan]{cost_info}")  # Show model key instead of API name
+            console.print(f"    {model_info.description}")
+            if model_info.supports_tools:
                 console.print("    [green]✓[/green] Supports tools")
-            if model.supports_streaming:
+            if model_info.supports_streaming:
                 console.print("    [green]✓[/green] Supports streaming")
             console.print(f"    [dim]Capabilities: {capabilities}[/dim]\n")
 
@@ -92,7 +94,7 @@ def main(
     model: Optional[str] = typer.Option(
         None,
         "--model", "-m",
-        help="LLM model to use (e.g., 'deepseek-chat', 'gpt-4', 'claude-3-sonnet')"
+        help="LLM model to use (e.g., 'deepseek', 'gpt-4', 'claude-3-sonnet')"
     ),
     session: Optional[str] = typer.Option(
         None,

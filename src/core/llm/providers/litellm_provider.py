@@ -163,9 +163,8 @@ class LiteLLMProvider(BaseLLM):
                 return f"ollama/{model}"
             elif model_info.provider.value == "llama_cpp":
                 # llama.cpp uses OpenAI-compatible API, use openai/ prefix
-                # Strip the 'llama-cpp-' prefix and use base model name
-                base_model = model.replace("llama-cpp-", "") if model.startswith("llama-cpp-") else model
-                return f"openai/{base_model}"
+                # Use generic model name for llama.cpp (user loads whatever model they want)
+                return "openai/local"
 
         # Other models pass through unchanged
         return model

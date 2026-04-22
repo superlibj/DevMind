@@ -151,7 +151,7 @@ class DevMindCompleter(Completer):
             return [
                 "gpt-4", "gpt-3.5-turbo", "gpt-4-turbo-preview",
                 "claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307",
-                "deepseek-chat", "deepseek-coder-v2"
+deepseek
             ]
 
     def _get_session_name_completions(self) -> List[str]:

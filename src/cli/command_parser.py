@@ -129,15 +129,14 @@ class CommandParser:
 ```
 /save web-project "Working on React components"
 /load web-project
-/model deepseek-chat
+/model deepseek
 /export web-project ./export.md markdown
 ```
 
 [bold]Model Examples:[/bold]
 • [cyan]claude-3-sonnet-20240229[/cyan] - Anthropic's balanced model
 • [cyan]gpt-4-turbo-preview[/cyan] - Latest GPT-4
-• [cyan]deepseek-chat[/cyan] - DeepSeek conversation model
-• [cyan]deepseek-coder-v2[/cyan] - DeepSeek coding specialist
+• [cyan]deepseek[/cyan] - DeepSeek for conversation and coding
         """
 
         console.print(Panel(
@@ -179,26 +178,28 @@ class CommandParser:
             try:
                 from ..core.llm.model_config import ProviderType
                 provider = ProviderType(provider_filter.lower())
-                models = model_config_manager.list_models(provider=provider)
+                # Filter models by provider while keeping keys
+                model_items = [(k, v) for k, v in model_config_manager._models.items()
+                              if v.provider == provider]
                 title = f"{provider_filter.upper()} Models"
             except ValueError:
                 console.print(f"[red]Unknown provider: {provider_filter}[/red]")
                 return
         else:
-            models = list(model_config_manager._models.values())
+            model_items = list(model_config_manager._models.items())
             title = "Available Models"
 
-        if not models:
+        if not model_items:
             console.print("[yellow]No models found.[/yellow]")
             return
 
         # Group by provider
         providers = {}
-        for model in models:
-            provider = model.provider.value
+        for model_key, model_info in model_items:
+            provider = model_info.provider.value
             if provider not in providers:
                 providers[provider] = []
-            providers[provider].append(model)
+            providers[provider].append((model_key, model_info))
 
         for provider_name, provider_models in providers.items():
             console.print(f"\n[bold bright_blue]{provider_name.upper()}:[/bold bright_blue]")
@@ -208,27 +209,27 @@ class CommandParser:
             table.add_column("Capabilities", style="green", width=20)
             table.add_column("Context", justify="right", style="blue", width=10)
             table.add_column("Cost/1k", justify="right", style="yellow", width=8)
-            table.add_column("Description", style="white", width=40)
+            table.add_column("Description", style="white")
 
-            for model in provider_models:
+            for model_key, model_info in provider_models:
                 capabilities = []
-                if model.supports_tools:
+                if model_info.supports_tools:
                     capabilities.append("tools")
-                if model.supports_streaming:
+                if model_info.supports_streaming:
                     capabilities.append("stream")
 
                 cost = ""
-                if model.cost_per_1k_input:
-                    cost = f"${model.cost_per_1k_input:.4f}"
+                if model_info.cost_per_1k_input:
+                    cost = f"${model_info.cost_per_1k_input:.4f}"
 
-                context = f"{model.context_window//1000}k" if model.context_window >= 1000 else str(model.context_window)
+                context = f"{model_info.context_window//1000}k" if model_info.context_window >= 1000 else str(model_info.context_window)
 
                 table.add_row(
-                    model.name,
+                    model_key,  # Show the user-facing model key instead of API name
                     ", ".join(capabilities),
                     context,
                     cost,
-                    model.description[:35] + "..." if len(model.description) > 35 else model.description
+                    model_info.description  # Show full description without truncation
                 )
 
             console.print(table)
@@ -512,7 +513,7 @@ Available Tools: {task_summary.get('available_tools', 0)}
                     console.print(f"  • [cyan]{model}[/cyan]")
 
                 console.print(f"\n[bold]Quick start:[/bold]")
-                console.print(f"  [cyan]/model llama-cpp-local[/cyan]")
+                console.print(f"  [cyan]/model llama-cpp[/cyan]")
             else:
                 console.print("[yellow]⚠[/yellow] llama.cpp server not found (http://localhost:8080)")
                 LlamaCppHelper.show_setup_instructions()

@@ -158,38 +158,22 @@ class ModelConfigManager:
             ),
 
             # DeepSeek Models
-            "deepseek-chat": ModelInfo(
-                name="deepseek-chat",
+            "deepseek": ModelInfo(
+                name="deepseek-chat",  # API model name
                 provider=ProviderType.DEEPSEEK,
                 max_tokens=8192,
-                context_window=32768,
+                context_window=128000,
                 capabilities=[
                     ModelCapability.CHAT,
                     ModelCapability.CODE_GENERATION,
+                    ModelCapability.CODE_REVIEW,
                     ModelCapability.TOOL_CALLING
                 ],
                 cost_per_1k_input=0.0014,
                 cost_per_1k_output=0.0028,
                 supports_streaming=True,
                 supports_tools=True,
-                description="DeepSeek Chat - General purpose conversation and coding"
-            ),
-            "deepseek-coder": ModelInfo(
-                name="deepseek-chat",  # Map to actual API model
-                provider=ProviderType.DEEPSEEK,
-                max_tokens=8192,
-                context_window=128000,
-                capabilities=[
-                    ModelCapability.CODE_GENERATION,
-                    ModelCapability.CODE_REVIEW,
-                    ModelCapability.TOOL_CALLING,
-                    ModelCapability.CHAT
-                ],
-                cost_per_1k_input=0.0014,
-                cost_per_1k_output=0.0028,
-                supports_streaming=True,
-                supports_tools=True,
-                description="DeepSeek Coder - Uses deepseek-chat for code generation and review"
+                description="DeepSeek - Versatile AI for conversation, coding, and development"
             ),
             "deepseek-reasoner": ModelInfo(
                 name="deepseek-reasoner",
@@ -249,46 +233,6 @@ class ModelConfigManager:
                 supports_tools=False,
                 description="Code Llama 7B/13B/34B - Specialized for code generation"
             ),
-            "codellama:13b": ModelInfo(
-                name="codellama:13b",
-                provider=ProviderType.OLLAMA,
-                max_tokens=4096,
-                context_window=16384,
-                capabilities=[
-                    ModelCapability.CHAT,
-                    ModelCapability.CODE_GENERATION,
-                    ModelCapability.CODE_REVIEW
-                ],
-                supports_tools=False,
-                description="Code Llama 13B - Better coding performance"
-            ),
-            "codellama:34b": ModelInfo(
-                name="codellama:34b",
-                provider=ProviderType.OLLAMA,
-                max_tokens=4096,
-                context_window=16384,
-                capabilities=[
-                    ModelCapability.CHAT,
-                    ModelCapability.CODE_GENERATION,
-                    ModelCapability.CODE_REVIEW,
-                    ModelCapability.COMPLETION
-                ],
-                supports_tools=False,
-                description="Code Llama 34B - Best coding performance"
-            ),
-            "deepseek-coder:ollama": ModelInfo(
-                name="deepseek-coder:ollama",
-                provider=ProviderType.OLLAMA,
-                max_tokens=8192,
-                context_window=16384,
-                capabilities=[
-                    ModelCapability.CHAT,
-                    ModelCapability.CODE_GENERATION,
-                    ModelCapability.CODE_REVIEW
-                ],
-                supports_tools=False,
-                description="DeepSeek Coder - Excellent for programming tasks"
-            ),
             "qwen2.5-coder": ModelInfo(
                 name="qwen2.5-coder:7b",
                 provider=ProviderType.OLLAMA,
@@ -302,20 +246,6 @@ class ModelConfigManager:
                 ],
                 supports_tools=False,
                 description="Qwen2.5 Coder - Strong multilingual coding model"
-            ),
-            "qwen2.5-coder:7b": ModelInfo(
-                name="qwen2.5-coder:7b",
-                provider=ProviderType.OLLAMA,
-                max_tokens=8192,
-                context_window=32768,
-                capabilities=[
-                    ModelCapability.CHAT,
-                    ModelCapability.CODE_GENERATION,
-                    ModelCapability.CODE_REVIEW,
-                    ModelCapability.COMPLETION
-                ],
-                supports_tools=False,
-                description="Qwen2.5 Coder 7B - Strong multilingual coding model"
             ),
             "starcoder2": ModelInfo(
                 name="starcoder2",
@@ -357,71 +287,21 @@ class ModelConfigManager:
                 supports_tools=False,
                 description="Mixtral 8x7B - Mixture of experts model with excellent performance"
             ),
-            "llama2": ModelInfo(
-                name="llama2",
-                provider=ProviderType.OLLAMA,
-                max_tokens=4096,
-                context_window=4096,
-                capabilities=[
-                    ModelCapability.CHAT,
-                    ModelCapability.COMPLETION
-                ],
-                supports_tools=False,
-                description="Llama 2 - Reliable foundation model"
-            ),
-            "phi3": ModelInfo(
-                name="phi3",
-                provider=ProviderType.OLLAMA,
-                max_tokens=4096,
-                context_window=128000,
-                capabilities=[
-                    ModelCapability.CHAT,
-                    ModelCapability.CODE_GENERATION,
-                    ModelCapability.COMPLETION
-                ],
-                supports_tools=False,
-                description="Phi-3 - Compact but powerful model"
-            ),
 
             # Llama.cpp Models
-            "llama-cpp-local": ModelInfo(
-                name="llama-cpp-local",
+            "llama-cpp": ModelInfo(
+                name="local",
                 provider=ProviderType.LLAMA_CPP,
                 max_tokens=4096,
-                context_window=8192,
+                context_window=32768,  # Use generous context window
                 capabilities=[
                     ModelCapability.CHAT,
-                    ModelCapability.COMPLETION,
-                    ModelCapability.CODE_GENERATION
-                ],
-                supports_tools=False,
-                description="Local model via llama.cpp server"
-            ),
-            "llama-cpp-codeqwen": ModelInfo(
-                name="llama-cpp-codeqwen",
-                provider=ProviderType.LLAMA_CPP,
-                max_tokens=4096,
-                context_window=32768,
-                capabilities=[
                     ModelCapability.CODE_GENERATION,
                     ModelCapability.CODE_REVIEW,
-                    ModelCapability.CHAT
+                    ModelCapability.COMPLETION
                 ],
                 supports_tools=False,
-                description="CodeQwen via llama.cpp for coding tasks"
-            ),
-            "llama-cpp-codellama": ModelInfo(
-                name="llama-cpp-codellama",
-                provider=ProviderType.LLAMA_CPP,
-                max_tokens=4096,
-                context_window=16384,
-                capabilities=[
-                    ModelCapability.CODE_GENERATION,
-                    ModelCapability.COMPLETION,
-                    ModelCapability.CHAT
-                ],
-                supports_tools=False,
-                description="Code Llama via llama.cpp server"
+                description="Local model via llama.cpp server (supports any GGUF model)"
             ),
         }
 

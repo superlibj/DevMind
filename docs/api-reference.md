@@ -350,10 +350,10 @@ DevMind automatically tracks:
 - **Features**: Streaming, large context
 
 #### DeepSeek
-- **Models**: deepseek-chat, deepseek-coder
+- **Models**: deepseek
 - **API Base**: https://api.deepseek.com/v1
 - **Authentication**: API key header
-- **Features**: Coding specialization
+- **Features**: Conversation and coding tasks
 
 #### Local (Ollama)
 - **Models**: qwen2.5-coder, codellama, llama3.2, mistral
